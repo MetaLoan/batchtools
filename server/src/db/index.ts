@@ -42,7 +42,8 @@ export function runMigrations() {
 
     CREATE TABLE IF NOT EXISTS uploads (
       id TEXT PRIMARY KEY,
-      account_id TEXT NOT NULL,
+      user_id TEXT NOT NULL DEFAULT '',
+      account_id TEXT NOT NULL DEFAULT '',
       filename TEXT NOT NULL,
       mime TEXT NOT NULL,
       bytes INTEGER NOT NULL,
@@ -55,11 +56,13 @@ export function runMigrations() {
       created_at INTEGER NOT NULL,
       expires_at INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS uploads_user_idx ON uploads(user_id);
     CREATE INDEX IF NOT EXISTS uploads_account_idx ON uploads(account_id);
     CREATE INDEX IF NOT EXISTS uploads_expires_idx ON uploads(expires_at);
 
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT '',
       account_id TEXT NOT NULL,
       capability_id TEXT NOT NULL,
       model_variant TEXT NOT NULL,
@@ -74,12 +77,14 @@ export function runMigrations() {
       created_at INTEGER NOT NULL,
       finished_at INTEGER
     );
+    CREATE INDEX IF NOT EXISTS jobs_user_status_idx ON jobs(user_id, status);
     CREATE INDEX IF NOT EXISTS jobs_account_status_idx ON jobs(account_id, status);
     CREATE INDEX IF NOT EXISTS jobs_created_at_idx ON jobs(created_at);
 
     CREATE TABLE IF NOT EXISTS sub_jobs (
       id TEXT PRIMARY KEY,
       job_id TEXT NOT NULL,
+      user_id TEXT NOT NULL DEFAULT '',
       account_id TEXT NOT NULL,
       capability_id TEXT NOT NULL,
       index_in_job INTEGER NOT NULL,
@@ -101,6 +106,7 @@ export function runMigrations() {
       version INTEGER NOT NULL DEFAULT 1
     );
     CREATE INDEX IF NOT EXISTS sub_jobs_job_idx ON sub_jobs(job_id);
+    CREATE INDEX IF NOT EXISTS sub_jobs_user_status_idx ON sub_jobs(user_id, status);
     CREATE INDEX IF NOT EXISTS sub_jobs_account_status_idx ON sub_jobs(account_id, status);
     CREATE INDEX IF NOT EXISTS sub_jobs_status_poll_idx ON sub_jobs(status, poll_next_at);
 
@@ -131,9 +137,20 @@ export function runMigrations() {
     sqlite.exec(`CREATE INDEX IF NOT EXISTS accounts_user_idx ON accounts(user_id)`);
   }
   if (!hasColumn('sessions', 'user_id')) {
-    // Sessions with no user binding are invalid; drop them.
     sqlite.exec(`DELETE FROM sessions`);
     sqlite.exec(`ALTER TABLE sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
     sqlite.exec(`CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id)`);
+  }
+  if (!hasColumn('jobs', 'user_id')) {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS jobs_user_status_idx ON jobs(user_id, status)`);
+  }
+  if (!hasColumn('sub_jobs', 'user_id')) {
+    sqlite.exec(`ALTER TABLE sub_jobs ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_jobs_user_status_idx ON sub_jobs(user_id, status)`);
+  }
+  if (!hasColumn('uploads', 'user_id')) {
+    sqlite.exec(`ALTER TABLE uploads ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS uploads_user_idx ON uploads(user_id)`);
   }
 }

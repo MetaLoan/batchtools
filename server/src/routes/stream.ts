@@ -1,23 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../lib/auth.js';
 import { registerSseClient } from '../lib/sse.js';
-import { accountBelongsToUser } from '../services/account-service.js';
 
 export async function streamRoutes(app: FastifyInstance) {
-  app.get('/v1/stream/:accountId', { preHandler: requireAuth }, async (req, reply) => {
-    const { accountId } = req.params as { accountId: string };
-    if (!accountBelongsToUser(req.currentUser!.id, accountId)) {
-      reply.code(403).send({ error: '账户不存在或无权访问' });
-      return;
-    }
+  // Stream is scoped to the current user (not per-account, since accounts are now shared)
+  app.get('/v1/stream/me', { preHandler: requireAuth }, async (req, reply) => {
+    const userId = req.currentUser!.id;
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
-    reply.raw.write(`event: ready\ndata: {"accountId":"${accountId}"}\n\n`);
-    registerSseClient(accountId, reply);
+    reply.raw.write(`event: ready\ndata: {"userId":"${userId}"}\n\n`);
+    registerSseClient(userId, reply);
     const heartbeat = setInterval(() => {
       try {
         reply.raw.write(': heartbeat\n\n');

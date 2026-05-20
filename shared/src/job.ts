@@ -116,7 +116,7 @@ export type SseEventType =
 
 export interface SseEvent<T = unknown> {
   type: SseEventType;
-  accountId: string;
+  userId: string;
   payload: T;
   ts: number;
 }

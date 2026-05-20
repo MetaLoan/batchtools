@@ -2,32 +2,26 @@ import { useQuery } from '@tanstack/react-query';
 import { Empty, Tabs, App as AntApp } from 'antd';
 import { Copy, Clock } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAppStore } from '../lib/store';
 import { formatBytes, formatCountdown, formatRelative } from '../lib/format';
 import { useCapabilities } from '../App';
 
 export default function AssetsPage() {
-  const accountId = useAppStore((s) => s.currentAccountId);
   const { message } = AntApp.useApp();
 
   const { data: uploads = [] } = useQuery({
-    queryKey: ['uploads', accountId],
-    queryFn: () => (accountId ? api.listUploads(accountId).then((r) => r.uploads) : Promise.resolve([])),
-    enabled: !!accountId,
+    queryKey: ['uploads'],
+    queryFn: () => api.listUploads().then((r) => r.uploads),
     refetchInterval: 10_000,
   });
 
   const { data: jobs = [] } = useQuery({
-    queryKey: ['jobs', accountId],
-    queryFn: () => (accountId ? api.listJobs(accountId, 200).then((r) => r.jobs) : Promise.resolve([])),
-    enabled: !!accountId,
+    queryKey: ['jobs'],
+    queryFn: () => api.listJobs(200).then((r) => r.jobs),
   });
 
   function copy(text: string) {
     navigator.clipboard.writeText(text).then(() => message.success('已复制 URL'));
   }
-
-  if (!accountId) return <div className="p-6"><Empty description="请先选择账户" /></div>;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">

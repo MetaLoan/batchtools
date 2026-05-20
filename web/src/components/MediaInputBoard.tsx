@@ -3,7 +3,6 @@ import { Upload, App as AntApp, Tooltip } from 'antd';
 import { Plus, X, Image as ImageIcon, Video as VideoIcon, Music } from 'lucide-react';
 import type { Capability, MediaInput, MediaSlot } from '@bvp/shared';
 import { api } from '../lib/api';
-import { useAppStore } from '../lib/store';
 import { formatBytes } from '../lib/format';
 
 interface Props {
@@ -26,7 +25,6 @@ function slotKindIcon(slot: MediaSlot) {
 }
 
 export default function MediaInputBoard({ capability, value, onChange }: Props) {
-  const accountId = useAppStore((s) => s.currentAccountId);
   const { message } = AntApp.useApp();
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -34,13 +32,9 @@ export default function MediaInputBoard({ capability, value, onChange }: Props) 
   const slots = capability.mediaSpec.slots;
 
   async function uploadFor(slot: MediaSlot, file: File) {
-    if (!accountId) {
-      message.error('请先选择账户');
-      return false;
-    }
     setBusy(slot.kind);
     try {
-      const result = await api.uploadFile(accountId, file);
+      const result = await api.uploadFile(file);
       const next: MediaInput = {
         kind: slot.kind,
         url: result.publicUrl,

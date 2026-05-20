@@ -37,6 +37,7 @@ export const uploads = sqliteTable(
   'uploads',
   {
     id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
     accountId: text('account_id').notNull(),
     filename: text('filename').notNull(),
     mime: text('mime').notNull(),
@@ -60,6 +61,7 @@ export const jobs = sqliteTable(
   'jobs',
   {
     id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
     accountId: text('account_id').notNull(),
     capabilityId: text('capability_id').notNull(),
     modelVariant: text('model_variant').notNull(),
@@ -75,6 +77,7 @@ export const jobs = sqliteTable(
     finishedAt: integer('finished_at'),
   },
   (t) => ({
+    byUserStatus: index('jobs_user_status_idx').on(t.userId, t.status),
     byAccountStatus: index('jobs_account_status_idx').on(t.accountId, t.status),
     byCreatedAt: index('jobs_created_at_idx').on(t.createdAt),
   })
@@ -85,6 +88,7 @@ export const subJobs = sqliteTable(
   {
     id: text('id').primaryKey(),
     jobId: text('job_id').notNull(),
+    userId: text('user_id').notNull(),
     accountId: text('account_id').notNull(),
     capabilityId: text('capability_id').notNull(),
     indexInJob: integer('index_in_job').notNull(),
@@ -107,6 +111,7 @@ export const subJobs = sqliteTable(
   },
   (t) => ({
     byJob: index('sub_jobs_job_idx').on(t.jobId),
+    byUserStatus: index('sub_jobs_user_status_idx').on(t.userId, t.status),
     byAccountStatus: index('sub_jobs_account_status_idx').on(t.accountId, t.status),
     byStatusPoll: index('sub_jobs_status_poll_idx').on(t.status, t.pollNextAt),
   })

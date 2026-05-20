@@ -19,7 +19,6 @@ export default function App() {
   const location = useLocation();
   const currentUser = useAppStore((s) => s.currentUser);
   const setCurrentUser = useAppStore((s) => s.setCurrentUser);
-  const accountId = useAppStore((s) => s.currentAccountId);
 
   useEffect(() => {
     api
@@ -29,7 +28,7 @@ export default function App() {
       .finally(() => setBootstrap('ready'));
   }, [setCurrentUser]);
 
-  useSse(currentUser ? accountId : null);
+  useSse(currentUser?.id ?? null);
 
   if (bootstrap === 'pending') {
     return <div className="flex h-screen items-center justify-center text-zinc-500">Loading…</div>;

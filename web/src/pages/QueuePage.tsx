@@ -3,36 +3,29 @@ import { Empty, Progress, App as AntApp, Button } from 'antd';
 import { X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { useAppStore } from '../lib/store';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatRelative } from '../lib/format';
 
 export default function QueuePage() {
-  const accountId = useAppStore((s) => s.currentAccountId);
   const qc = useQueryClient();
   const { message } = AntApp.useApp();
 
   const { data: jobs = [], isLoading } = useQuery({
-    queryKey: ['jobs', accountId],
-    queryFn: () => (accountId ? api.listJobs(accountId).then((r) => r.jobs) : Promise.resolve([])),
-    enabled: !!accountId,
+    queryKey: ['jobs'],
+    queryFn: () => api.listJobs().then((r) => r.jobs),
     refetchInterval: 5000,
   });
 
   const active = jobs.filter((j) => j.status === 'RUNNING' || j.status === 'QUEUED');
 
   const cancelMut = useMutation({
-    mutationFn: (jobId: string) => api.cancelJob(accountId!, jobId),
+    mutationFn: (jobId: string) => api.cancelJob(jobId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['jobs', accountId] });
+      qc.invalidateQueries({ queryKey: ['jobs'] });
       message.success('已取消');
     },
     onError: (e: Error) => message.error(e.message),
   });
-
-  if (!accountId) {
-    return <div className="p-6"><Empty description="请先选择账户" /></div>;
-  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">

@@ -1,16 +1,16 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../lib/auth.js';
 import { hasCapability } from '../providers/index.js';
 import {
-  cancelJob,
+  cancelJobForUser,
   createJob,
-  getJob,
-  listJobs,
-  listSubJobs,
-  retrySubJob,
+  getJobForUser,
+  listJobsForUser,
+  listSubJobsForUser,
+  retrySubJobForUser,
 } from '../services/job-service.js';
-import { accountBelongsToUser } from '../services/account-service.js';
+import { accountExists } from '../services/account-service.js';
 
 const MediaInputSchema = z.object({
   kind: z.enum([
@@ -72,14 +72,6 @@ const RetryBody = z.object({
   paramOverride: z.record(z.unknown()).optional(),
 });
 
-function ensureAccountOwnership(req: FastifyRequest, reply: FastifyReply, accountId: string): boolean {
-  if (!accountBelongsToUser(req.currentUser!.id, accountId)) {
-    reply.code(403).send({ error: '账户不存在或无权访问' });
-    return false;
-  }
-  return true;
-}
-
 export async function jobRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
 
@@ -94,9 +86,13 @@ export async function jobRoutes(app: FastifyInstance) {
       reply.code(400).send({ error: `Unknown capability: ${body.capabilityId}` });
       return;
     }
-    if (!ensureAccountOwnership(req, reply, body.accountId)) return;
+    if (!accountExists(body.accountId)) {
+      reply.code(400).send({ error: '账户不存在或已被管理员移除' });
+      return;
+    }
     try {
       const result = createJob({
+        userId: req.currentUser!.id,
         accountId: body.accountId,
         capabilityId: body.capabilityId as never,
         modelVariant: body.modelVariant,
@@ -118,57 +114,37 @@ export async function jobRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get('/v1/jobs', async (req, reply) => {
-    const { accountId, limit } = req.query as { accountId?: string; limit?: string };
-    if (!accountId) return { jobs: [] };
-    if (!ensureAccountOwnership(req, reply, accountId)) return;
-    return { jobs: listJobs(accountId, limit ? Number(limit) : 50) };
+  app.get('/v1/jobs', async (req) => {
+    const { limit } = req.query as { limit?: string };
+    return { jobs: listJobsForUser(req.currentUser!.id, limit ? Number(limit) : 50) };
   });
 
   app.get('/v1/jobs/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const { accountId } = req.query as { accountId?: string };
-    if (!accountId) {
-      reply.code(400).send({ error: 'accountId required' });
-      return;
-    }
-    if (!ensureAccountOwnership(req, reply, accountId)) return;
-    const job = getJob(accountId, id);
+    const job = getJobForUser(req.currentUser!.id, id);
     if (!job) {
       reply.code(404).send({ error: 'Not found' });
       return;
     }
-    const subs = listSubJobs(accountId, id);
+    const subs = listSubJobsForUser(req.currentUser!.id, id);
     reply.send({ job, subJobs: subs });
   });
 
   app.post('/v1/jobs/:id/cancel', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const { accountId } = req.body as { accountId?: string };
-    if (!accountId) {
-      reply.code(400).send({ error: 'accountId required' });
-      return;
-    }
-    if (!ensureAccountOwnership(req, reply, accountId)) return;
-    const count = cancelJob(accountId, id);
+    const count = cancelJobForUser(req.currentUser!.id, id);
     reply.send({ canceled: count });
   });
 
   app.post('/v1/sub_jobs/:id/retry', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const { accountId, ...rest } = (req.body as { accountId?: string } & Record<string, unknown>) ?? {};
-    if (!accountId) {
-      reply.code(400).send({ error: 'accountId required' });
-      return;
-    }
-    if (!ensureAccountOwnership(req, reply, accountId)) return;
-    const parsed = RetryBody.safeParse(rest);
+    const parsed = RetryBody.safeParse(req.body ?? {});
     if (!parsed.success) {
       reply.code(400).send({ error: parsed.error.flatten() });
       return;
     }
     try {
-      const newId = retrySubJob(accountId, id, parsed.data.paramOverride);
+      const newId = retrySubJobForUser(req.currentUser!.id, id, parsed.data.paramOverride);
       reply.code(201).send({ subJobId: newId });
     } catch (e: unknown) {
       reply.code(400).send({ error: (e as Error).message });

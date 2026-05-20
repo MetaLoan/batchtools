@@ -124,7 +124,7 @@ async function trySubmit(row: typeof subJobs.$inferSelect): Promise<void> {
 
     broadcast({
       type: 'sub_job.submitted',
-      accountId: row.accountId,
+      userId: row.userId,
       payload: { subJobId: row.id, jobId: row.jobId, providerTaskId: handle.providerTaskId },
       ts: now,
     });
@@ -161,7 +161,7 @@ async function trySubmit(row: typeof subJobs.$inferSelect): Promise<void> {
         .run();
       broadcast({
         type: 'sub_job.finished',
-        accountId: row.accountId,
+        userId: row.userId,
         payload: { subJobId: row.id, jobId: row.jobId, status: 'FAILED' },
         ts: now,
       });

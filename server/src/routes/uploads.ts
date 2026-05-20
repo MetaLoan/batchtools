@@ -3,71 +3,43 @@ import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../lib/auth.js';
 import {
   getUploadStoragePath,
-  listAccountUploads,
+  listUserUploads,
   saveUpload,
   verifySignedUpload,
 } from '../services/upload-service.js';
-import { accountBelongsToUser } from '../services/account-service.js';
 
 export async function uploadRoutes(app: FastifyInstance) {
-  app.post(
-    '/v1/uploads',
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const accountId = (req.query as { accountId?: string }).accountId;
-      if (!accountId) {
-        reply.code(400).send({ error: 'accountId required' });
-        return;
-      }
-      if (!accountBelongsToUser(req.currentUser!.id, accountId)) {
-        reply.code(403).send({ error: '账户不存在或无权访问' });
-        return;
-      }
-      const file = await (req as unknown as {
-        file: () => Promise<
-          { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
-        >;
-      }).file();
-      if (!file) {
-        reply.code(400).send({ error: 'No file uploaded' });
-        return;
-      }
-      const data = await file.toBuffer();
-      try {
-        const result = saveUpload({
-          accountId,
-          filename: file.filename,
-          mime: file.mimetype,
-          data,
-        });
-        reply.code(201).send(result);
-      } catch (e: unknown) {
-        reply.code(400).send({ error: (e as Error).message });
-      }
+  app.post('/v1/uploads', { preHandler: requireAuth }, async (req, reply) => {
+    const file = await (req as unknown as {
+      file: () => Promise<
+        { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
+      >;
+    }).file();
+    if (!file) {
+      reply.code(400).send({ error: 'No file uploaded' });
+      return;
     }
-  );
-
-  app.get(
-    '/v1/uploads',
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const accountId = (req.query as { accountId?: string }).accountId;
-      if (!accountId) {
-        reply.code(400).send({ error: 'accountId required' });
-        return;
-      }
-      if (!accountBelongsToUser(req.currentUser!.id, accountId)) {
-        reply.code(403).send({ error: '账户不存在或无权访问' });
-        return;
-      }
-      reply.send({ uploads: listAccountUploads(accountId) });
+    const data = await file.toBuffer();
+    try {
+      const result = saveUpload({
+        userId: req.currentUser!.id,
+        filename: file.filename,
+        mime: file.mimetype,
+        data,
+      });
+      reply.code(201).send(result);
+    } catch (e: unknown) {
+      reply.code(400).send({ error: (e as Error).message });
     }
-  );
+  });
 
-  // Public-but-signed file fetch endpoint that DashScope will hit.
-  // Signature alone is sufficient — DashScope must reach this without our cookie.
-  app.get('/uploads/:accountId/:filename', async (req, reply) => {
-    const { accountId, filename } = req.params as { accountId: string; filename: string };
+  app.get('/v1/uploads', { preHandler: requireAuth }, async (req, reply) => {
+    reply.send({ uploads: listUserUploads(req.currentUser!.id) });
+  });
+
+  // Public-but-signed file fetch endpoint that DashScope will hit
+  app.get('/uploads/:userId/:filename', async (req, reply) => {
+    const { userId, filename } = req.params as { userId: string; filename: string };
     const { sig, exp } = req.query as { sig?: string; exp?: string };
     if (!sig || !exp) {
       reply.code(403).send({ error: 'Missing signature' });
@@ -75,11 +47,11 @@ export async function uploadRoutes(app: FastifyInstance) {
     }
     const expNum = Number(exp);
     const id = filename.split('.')[0];
-    if (!verifySignedUpload(accountId, id, sig, expNum)) {
+    if (!verifySignedUpload(userId, id, sig, expNum)) {
       reply.code(403).send({ error: 'Invalid signature' });
       return;
     }
-    const storagePath = getUploadStoragePath(accountId, id);
+    const storagePath = getUploadStoragePath(userId, id);
     if (!storagePath || !fs.existsSync(storagePath)) {
       reply.code(404).send({ error: 'Not found' });
       return;

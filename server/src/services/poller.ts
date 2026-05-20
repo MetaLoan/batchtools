@@ -101,7 +101,7 @@ async function pollOne(row: typeof subJobs.$inferSelect): Promise<void> {
       decrementInFlight(row.accountId, row.capabilityId as CapabilityId);
       broadcast({
         type: 'sub_job.finished',
-        accountId: row.accountId,
+        userId: row.userId,
         payload: {
           subJobId: row.id,
           jobId: row.jobId,
@@ -110,7 +110,7 @@ async function pollOne(row: typeof subJobs.$inferSelect): Promise<void> {
         },
         ts: now,
       });
-      maybeFinalizeJob(row.jobId, row.accountId);
+      maybeFinalizeJob(row.jobId, row.userId);
       return;
     }
 
@@ -135,11 +135,11 @@ async function pollOne(row: typeof subJobs.$inferSelect): Promise<void> {
       decrementInFlight(row.accountId, row.capabilityId as CapabilityId);
       broadcast({
         type: 'sub_job.finished',
-        accountId: row.accountId,
+        userId: row.userId,
         payload: { subJobId: row.id, jobId: row.jobId, status: finalStatus },
         ts: now,
       });
-      maybeFinalizeJob(row.jobId, row.accountId);
+      maybeFinalizeJob(row.jobId, row.userId);
       return;
     }
 
@@ -156,7 +156,7 @@ async function pollOne(row: typeof subJobs.$inferSelect): Promise<void> {
       .run();
     broadcast({
       type: 'sub_job.updated',
-      accountId: row.accountId,
+      userId: row.userId,
       payload: { subJobId: row.id, jobId: row.jobId, status: result.status },
       ts: now,
     });
@@ -173,7 +173,7 @@ async function pollOne(row: typeof subJobs.$inferSelect): Promise<void> {
   }
 }
 
-function maybeFinalizeJob(jobId: string, accountId: string) {
+function maybeFinalizeJob(jobId: string, userId: string) {
   const counts = db
     .select({ status: subJobs.status, count: sql<number>`count(*)` })
     .from(subJobs)
@@ -206,7 +206,7 @@ function maybeFinalizeJob(jobId: string, accountId: string) {
     .set({ status: finalStatus, finishedAt: Date.now() })
     .where(eq(jobs.id, jobId))
     .run();
-  broadcast({ type: 'job.updated', accountId, payload: { jobId, status: finalStatus }, ts: Date.now() });
+  broadcast({ type: 'job.updated', userId, payload: { jobId, status: finalStatus }, ts: Date.now() });
 }
 
 async function tick(): Promise<void> {

@@ -17,6 +17,7 @@ import { expandMatrix } from './batch-expander.js';
 import { broadcast } from '../lib/sse.js';
 
 export interface CreateJobInput {
+  userId: string;
   accountId: string;
   capabilityId: CapabilityId;
   modelVariant: string;
@@ -47,6 +48,7 @@ export function createJob(input: CreateJobInput): { jobId: string; total: number
     tx.insert(jobs)
       .values({
         id: jobId,
+        userId: input.userId,
         accountId: input.accountId,
         capabilityId: input.capabilityId,
         modelVariant: input.modelVariant,
@@ -67,6 +69,7 @@ export function createJob(input: CreateJobInput): { jobId: string; total: number
         .values({
           id: nanoid(),
           jobId,
+          userId: input.userId,
           accountId: input.accountId,
           capabilityId: input.capabilityId,
           indexInJob: d.indexInJob,
@@ -86,8 +89,8 @@ export function createJob(input: CreateJobInput): { jobId: string; total: number
 
   broadcast({
     type: 'job.created',
-    accountId: input.accountId,
-    payload: { jobId, total: drafts.length },
+    userId: input.userId,
+    payload: { jobId, total: drafts.length, accountId: input.accountId },
     ts: now,
   });
 
@@ -111,11 +114,11 @@ function rowToJobSummary(r: typeof jobs.$inferSelect, stats: { done: number; fai
   };
 }
 
-export function listJobs(accountId: string, limit = 50): JobSummary[] {
+export function listJobsForUser(userId: string, limit = 50): JobSummary[] {
   const rows = db
     .select()
     .from(jobs)
-    .where(eq(jobs.accountId, accountId))
+    .where(eq(jobs.userId, userId))
     .orderBy(desc(jobs.createdAt))
     .limit(limit)
     .all();
@@ -138,11 +141,11 @@ function computeJobStats(jobId: string) {
   return { done, failed };
 }
 
-export function getJob(accountId: string, jobId: string): JobDetail | null {
+export function getJobForUser(userId: string, jobId: string): JobDetail | null {
   const r = db
     .select()
     .from(jobs)
-    .where(and(eq(jobs.id, jobId), eq(jobs.accountId, accountId)))
+    .where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)))
     .get();
   if (!r) return null;
   return {
@@ -154,11 +157,11 @@ export function getJob(accountId: string, jobId: string): JobDetail | null {
   };
 }
 
-export function listSubJobs(accountId: string, jobId: string): SubJobDetail[] {
+export function listSubJobsForUser(userId: string, jobId: string): SubJobDetail[] {
   const rows = db
     .select()
     .from(subJobs)
-    .where(and(eq(subJobs.jobId, jobId), eq(subJobs.accountId, accountId)))
+    .where(and(eq(subJobs.jobId, jobId), eq(subJobs.userId, userId)))
     .orderBy(subJobs.indexInJob)
     .all();
   return rows.map(rowToSubJobDetail);
@@ -190,14 +193,14 @@ export function rowToSubJobDetail(r: typeof subJobs.$inferSelect): SubJobDetail 
   };
 }
 
-export function cancelJob(accountId: string, jobId: string): number {
+export function cancelJobForUser(userId: string, jobId: string): number {
   const now = Date.now();
   let count = 0;
   db.transaction((tx) => {
     const subs = tx
       .select()
       .from(subJobs)
-      .where(and(eq(subJobs.jobId, jobId), eq(subJobs.accountId, accountId)))
+      .where(and(eq(subJobs.jobId, jobId), eq(subJobs.userId, userId)))
       .all();
     for (const s of subs) {
       if (s.status === 'PENDING_SUBMIT' || s.status === 'RETRY_QUEUED') {
@@ -214,27 +217,42 @@ export function cancelJob(accountId: string, jobId: string): number {
         count++;
       }
     }
-    tx.update(jobs).set({ status: 'CANCELED' }).where(eq(jobs.id, jobId)).run();
+    tx.update(jobs).set({ status: 'CANCELED' }).where(and(eq(jobs.id, jobId), eq(jobs.userId, userId))).run();
   });
-  broadcast({ type: 'job.updated', accountId, payload: { jobId, status: 'CANCELED' }, ts: now });
+  broadcast({
+    type: 'job.updated',
+    userId,
+    payload: { jobId, status: 'CANCELED' },
+    ts: now,
+  });
   return count;
 }
 
-export function retrySubJob(accountId: string, subJobId: string, paramOverride?: Record<string, unknown>): string {
-  const original = db.select().from(subJobs).where(and(eq(subJobs.id, subJobId), eq(subJobs.accountId, accountId))).get();
+export function retrySubJobForUser(
+  userId: string,
+  subJobId: string,
+  paramOverride?: Record<string, unknown>
+): string {
+  const original = db
+    .select()
+    .from(subJobs)
+    .where(and(eq(subJobs.id, subJobId), eq(subJobs.userId, userId)))
+    .get();
   if (!original) throw new Error('SubJob not found');
   const snap = JSON.parse(original.paramsSnapshotJson);
   if (paramOverride) snap.params = { ...snap.params, ...paramOverride };
   const newId = nanoid();
-  const indexInJob = db
-    .select({ max: sql<number>`MAX(${subJobs.indexInJob})` })
-    .from(subJobs)
-    .where(eq(subJobs.jobId, original.jobId))
-    .get()?.max ?? 0;
+  const indexInJob =
+    db
+      .select({ max: sql<number>`MAX(${subJobs.indexInJob})` })
+      .from(subJobs)
+      .where(eq(subJobs.jobId, original.jobId))
+      .get()?.max ?? 0;
   db.insert(subJobs)
     .values({
       id: newId,
       jobId: original.jobId,
+      userId: original.userId,
       accountId: original.accountId,
       capabilityId: original.capabilityId,
       indexInJob: (indexInJob ?? 0) + 1,

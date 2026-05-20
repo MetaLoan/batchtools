@@ -2,28 +2,28 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SseEvent } from '@bvp/shared';
 
-export function useSse(accountId: string | null) {
+export function useSse(userId: string | null) {
   const qc = useQueryClient();
   const ref = useRef<EventSource | null>(null);
   useEffect(() => {
-    if (!accountId) {
+    if (!userId) {
       ref.current?.close();
       ref.current = null;
       return;
     }
-    const es = new EventSource(`/v1/stream/${accountId}`, { withCredentials: true });
+    const es = new EventSource('/v1/stream/me', { withCredentials: true });
     ref.current = es;
     const onMsg = (ev: MessageEvent) => {
       try {
         const data = JSON.parse(ev.data) as SseEvent;
         if (data.type === 'job.created' || data.type === 'job.updated') {
-          qc.invalidateQueries({ queryKey: ['jobs', accountId] });
+          qc.invalidateQueries({ queryKey: ['jobs'] });
         }
         if (data.type.startsWith('sub_job')) {
-          qc.invalidateQueries({ queryKey: ['jobs', accountId] });
+          qc.invalidateQueries({ queryKey: ['jobs'] });
           const payload = data.payload as { jobId?: string };
           if (payload.jobId) {
-            qc.invalidateQueries({ queryKey: ['job', accountId, payload.jobId] });
+            qc.invalidateQueries({ queryKey: ['job', payload.jobId] });
           }
         }
       } catch {
@@ -34,11 +34,11 @@ export function useSse(accountId: string | null) {
       es.addEventListener(t, onMsg as EventListener)
     );
     es.onerror = () => {
-      // browser will auto-reconnect; nothing to do
+      // browser will auto-reconnect
     };
     return () => {
       es.close();
       ref.current = null;
     };
-  }, [accountId, qc]);
+  }, [userId, qc]);
 }

@@ -1,28 +1,23 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Empty, Select, Input, Table } from 'antd';
+import { Select, Input, Table } from 'antd';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { useAppStore } from '../lib/store';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatRelative } from '../lib/format';
 import { useCapabilities } from '../App';
 
 export default function TasksPage() {
-  const accountId = useAppStore((s) => s.currentAccountId);
   const { data: capabilities = [] } = useCapabilities();
   const [filterCap, setFilterCap] = useState<string | undefined>();
   const [filterStatus, setFilterStatus] = useState<string | undefined>();
   const [search, setSearch] = useState('');
 
   const { data: jobs = [], isLoading } = useQuery({
-    queryKey: ['jobs', accountId],
-    queryFn: () => (accountId ? api.listJobs(accountId, 200).then((r) => r.jobs) : Promise.resolve([])),
-    enabled: !!accountId,
+    queryKey: ['jobs'],
+    queryFn: () => api.listJobs(200).then((r) => r.jobs),
     refetchInterval: 8000,
   });
-
-  if (!accountId) return <div className="p-6"><Empty description="请先选择账户" /></div>;
 
   const filtered = jobs.filter((j) => {
     if (filterCap && j.capabilityId !== filterCap) return false;

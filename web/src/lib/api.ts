@@ -82,17 +82,8 @@ export const api = {
   // Capabilities
   listCapabilities: () => http<{ capabilities: Capability[] }>('/v1/capabilities'),
 
-  // Accounts (scoped to current user)
+  // DashScope accounts (read-only listing — devops manages keys via accounts.yaml)
   listAccounts: () => http<{ accounts: AccountSummary[] }>('/v1/accounts'),
-  createAccount: (input: {
-    name: string;
-    apiKey: string;
-    endpoint?: string;
-    disableDataInspection?: boolean;
-  }) => http<AccountSummary>('/v1/accounts', { method: 'POST', body: JSON.stringify(input) }),
-  deleteAccount: (id: string) => http<{ ok: true }>(`/v1/accounts/${id}`, { method: 'DELETE' }),
-  updateAccount: (id: string, patch: Partial<{ name: string; apiKey: string; endpoint: string; disableDataInspection: boolean }>) =>
-    http<AccountSummary>(`/v1/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   testAccount: (id: string) =>
     http<{ ok: boolean; status?: number; code?: string; message?: string; hint?: string }>(
       `/v1/accounts/${id}/test`,
@@ -110,28 +101,22 @@ export const api = {
     baseParameters: Record<string, unknown>;
     batchMatrix: BatchMatrix;
   }) => http<{ jobId: string; total: number }>('/v1/jobs', { method: 'POST', body: JSON.stringify(input) }),
-  listJobs: (accountId: string, limit = 50) =>
-    http<{ jobs: JobSummary[] }>(`/v1/jobs?accountId=${encodeURIComponent(accountId)}&limit=${limit}`),
-  getJob: (accountId: string, jobId: string) =>
-    http<{ job: JobDetail; subJobs: SubJobDetail[] }>(
-      `/v1/jobs/${jobId}?accountId=${encodeURIComponent(accountId)}`
-    ),
-  cancelJob: (accountId: string, jobId: string) =>
-    http<{ canceled: number }>(`/v1/jobs/${jobId}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify({ accountId }),
-    }),
-  retrySubJob: (accountId: string, subJobId: string, paramOverride?: Record<string, unknown>) =>
+  listJobs: (limit = 50) => http<{ jobs: JobSummary[] }>(`/v1/jobs?limit=${limit}`),
+  getJob: (jobId: string) =>
+    http<{ job: JobDetail; subJobs: SubJobDetail[] }>(`/v1/jobs/${jobId}`),
+  cancelJob: (jobId: string) =>
+    http<{ canceled: number }>(`/v1/jobs/${jobId}/cancel`, { method: 'POST', body: '{}' }),
+  retrySubJob: (subJobId: string, paramOverride?: Record<string, unknown>) =>
     http<{ subJobId: string }>(`/v1/sub_jobs/${subJobId}/retry`, {
       method: 'POST',
-      body: JSON.stringify({ accountId, paramOverride }),
+      body: JSON.stringify({ paramOverride }),
     }),
 
-  // Uploads
-  uploadFile: async (accountId: string, file: File) => {
+  // Uploads (user-scoped)
+  uploadFile: async (file: File) => {
     const fd = new FormData();
     fd.append('file', file);
-    const res = await fetch(`/v1/uploads?accountId=${encodeURIComponent(accountId)}`, {
+    const res = await fetch('/v1/uploads', {
       method: 'POST',
       credentials: 'include',
       body: fd,
@@ -149,7 +134,7 @@ export const api = {
       mime: string;
     };
   },
-  listUploads: (accountId: string) =>
+  listUploads: () =>
     http<{
       uploads: Array<{
         id: string;
@@ -160,5 +145,5 @@ export const api = {
         createdAt: number;
         expiresAt: number;
       }>;
-    }>(`/v1/uploads?accountId=${encodeURIComponent(accountId)}`),
+    }>('/v1/uploads'),
 };

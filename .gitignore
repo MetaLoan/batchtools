@@ -21,6 +21,10 @@ doc/env.yaml.md
 data-test/
 /tmp/
 
+# DashScope account config — devops-managed, contains real keys
+accounts.yaml
+accounts.yml
+
 # IDE / agent-local settings
 .claude/
 .vscode/

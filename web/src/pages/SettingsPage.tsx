@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Modal, Form, Input, App as AntApp, Switch, Empty, Tag, Tooltip, Tabs, Select } from 'antd';
-import { Trash2, Plus, KeyRound, UserPlus, ShieldCheck, ShieldOff, CheckCircle2, AlertTriangle, Wifi } from 'lucide-react';
+import { Button, Modal, Form, Input, App as AntApp, Switch, Empty, Tag, Tooltip, Tabs } from 'antd';
+import { Trash2, KeyRound, UserPlus, ShieldCheck, ShieldOff } from 'lucide-react';
 import { api, type CurrentUser } from '../lib/api';
 import { useAppStore } from '../lib/store';
 import { formatRelative } from '../lib/format';
@@ -13,238 +13,20 @@ export default function SettingsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">设置</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          {currentUser?.isAdmin
-            ? '管理你的 DashScope 账户、密码与全平台用户'
-            : '管理你的 DashScope 账户与密码'}
+          {currentUser?.isAdmin ? '管理你的密码与全平台用户' : '管理你的密码'}
         </p>
       </div>
       <Tabs
         items={[
-          { key: 'dashscope', label: 'DashScope 账户', children: <DashScopeAccountsTab /> },
           { key: 'password', label: '修改密码', children: <ChangePasswordTab /> },
           ...(currentUser?.isAdmin
             ? [{ key: 'users', label: '用户管理', children: <UsersTab /> }]
             : []),
         ]}
       />
-    </div>
-  );
-}
-
-const ENDPOINT_OPTIONS = [
-  { value: 'https://dashscope-intl.aliyuncs.com', label: '🇸🇬 新加坡', short: '新加坡' },
-  { value: 'https://dashscope.aliyuncs.com', label: '🇨🇳 北京', short: '北京' },
-  { value: 'https://dashscope-us.aliyuncs.com', label: '🇺🇸 美西 (弗吉尼亚)', short: '美西' },
-];
-
-function endpointShortName(url: string): string {
-  return ENDPOINT_OPTIONS.find((o) => o.value === url)?.short ?? '自定义';
-}
-
-function DashScopeAccountsTab() {
-  const qc = useQueryClient();
-  const { message, modal } = AntApp.useApp();
-  const accountId = useAppStore((s) => s.currentAccountId);
-  const setAccountId = useAppStore((s) => s.setCurrentAccountId);
-  const [open, setOpen] = useState(false);
-  const [form] = Form.useForm();
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; label: string; hint?: string }>>({});
-
-  const { data: accounts = [], isLoading } = useQuery({
-    queryKey: ['accounts'],
-    queryFn: () => api.listAccounts().then((r) => r.accounts),
-  });
-
-  const createMut = useMutation({
-    mutationFn: (input: { name: string; apiKey: string; endpoint?: string; disableDataInspection?: boolean }) =>
-      api.createAccount(input),
-    onSuccess: (acc) => {
-      qc.invalidateQueries({ queryKey: ['accounts'] });
-      setAccountId(acc.id);
-      setOpen(false);
-      form.resetFields();
-      message.success('账户已添加');
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const testMut = useMutation({
-    mutationFn: (id: string) => api.testAccount(id).then((r) => ({ id, r })),
-    onSuccess: ({ id, r }) => {
-      setTestResults((prev) => ({
-        ...prev,
-        [id]: {
-          ok: r.ok,
-          label: r.ok
-            ? r.message ?? '连接正常'
-            : `${r.code ?? '错误'}${r.message ? ': ' + r.message : ''}`,
-          hint: r.hint,
-        },
-      }));
-      if (r.ok) message.success('连接正常');
-      else message.error(r.hint ?? r.message ?? '连接失败');
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => api.deleteAccount(id),
-    onSuccess: (_, id) => {
-      qc.invalidateQueries({ queryKey: ['accounts'] });
-      if (accountId === id) setAccountId(null);
-      message.success('已删除');
-    },
-  });
-
-  return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-zinc-500">仅你自己可见，互不可见于其他用户</p>
-        <Button type="primary" icon={<Plus size={14} />} onClick={() => setOpen(true)}>
-          添加账户
-        </Button>
-      </div>
-      {isLoading ? (
-        <div className="text-zinc-500">加载中…</div>
-      ) : accounts.length === 0 ? (
-        <Empty description="还没有账户">
-          <Button type="primary" onClick={() => setOpen(true)}>
-            添加第一个账户
-          </Button>
-        </Empty>
-      ) : (
-        <div className="space-y-2">
-          {accounts.map((a) => {
-            const test = testResults[a.id];
-            return (
-              <div
-                key={a.id}
-                className={`surface p-4 ${accountId === a.id ? '!border-brand-500/60' : ''}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <KeyRound size={14} className="text-brand-400" />
-                      <span className="text-sm font-medium">{a.name}</span>
-                      <Tag bordered={false} color="default">
-                        {endpointShortName(a.endpoint)}
-                      </Tag>
-                      {accountId === a.id && (
-                        <Tag color="processing" bordered={false}>
-                          当前
-                        </Tag>
-                      )}
-                      {a.disableDataInspection && (
-                        <Tooltip title="X-DashScope-DataInspection: disable">
-                          <Tag color="warning" bordered={false}>
-                            关数据检查
-                          </Tag>
-                        </Tooltip>
-                      )}
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-500">
-                      并发 {a.policy.maxConcurrentRunning} · 速率 {a.policy.submitRatePerMin}/min · 创建{' '}
-                      {formatRelative(a.createdAt)}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      size="small"
-                      icon={<Wifi size={12} />}
-                      loading={testMut.isPending && testMut.variables === a.id}
-                      onClick={() => testMut.mutate(a.id)}
-                    >
-                      测试
-                    </Button>
-                    {accountId !== a.id && (
-                      <Button size="small" onClick={() => setAccountId(a.id)}>
-                        切换
-                      </Button>
-                    )}
-                    <Button
-                      size="small"
-                      danger
-                      icon={<Trash2 size={12} />}
-                      onClick={() =>
-                        modal.confirm({
-                          title: `删除账户 ${a.name}?`,
-                          content: '这只删除本地配置，DashScope 端的 API Key 不会受影响',
-                          okButtonProps: { danger: true },
-                          onOk: () => deleteMut.mutate(a.id),
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                {test && (
-                  <div
-                    className={`mt-2 flex items-start gap-2 rounded-md px-3 py-2 text-xs ${
-                      test.ok
-                        ? 'bg-emerald-500/10 text-emerald-300'
-                        : 'bg-rose-500/10 text-rose-300'
-                    }`}
-                  >
-                    {test.ok ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
-                    <div className="min-w-0 flex-1">
-                      <div>{test.label}</div>
-                      {test.hint && <div className="mt-0.5 text-[11px] opacity-80">{test.hint}</div>}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <Modal
-        title="添加账户"
-        open={open}
-        onCancel={() => setOpen(false)}
-        onOk={() => form.submit()}
-        confirmLoading={createMut.isPending}
-        okText="保存"
-        cancelText="取消"
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={(v) => createMut.mutate(v)}
-          initialValues={{
-            disableDataInspection: false,
-            endpoint: 'https://dashscope-intl.aliyuncs.com',
-          }}
-        >
-          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
-            <Input placeholder="主号 / 测试号 ..." />
-          </Form.Item>
-          <Form.Item
-            name="endpoint"
-            label="DashScope 地域"
-            rules={[{ required: true, message: '请选择地域' }]}
-            extra="Key 在哪个地域申请的就选哪个；选错会报 InvalidApiKey"
-          >
-            <Select options={ENDPOINT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))} />
-          </Form.Item>
-          <Form.Item
-            name="apiKey"
-            label="DashScope API Key"
-            rules={[{ required: true, message: '请输入 API Key' }]}
-            normalize={(v: string) => (typeof v === 'string' ? v.trim() : v)}
-            extra="存储时会加密，仅在调用 DashScope 时解密。粘贴前后的空格会自动去掉"
-          >
-            <Input.Password placeholder="sk-..." />
-          </Form.Item>
-          <Form.Item
-            name="disableDataInspection"
-            label="关闭数据检查"
-            valuePropName="checked"
-            extra="为请求注入 X-DashScope-DataInspection: disable"
-          >
-            <Switch />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <p className="mt-6 text-xs text-zinc-600">
+        💡 DashScope API Key 由开发/运维统一在 <code className="rounded bg-zinc-800 px-1 py-0.5">accounts.yaml</code> 配置，前端不可见、不可改。如需新增或修改，联系运维。
+      </p>
     </div>
   );
 }
@@ -370,7 +152,7 @@ function UsersTab() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-zinc-500">
-          创建团队成员账号。每个用户的 DashScope 账户、任务、上传相互不可见。
+          创建团队成员账号。每个用户的任务、上传相互不可见；DashScope 账户全员共用。
         </p>
         <Button type="primary" icon={<UserPlus size={14} />} onClick={() => setOpen(true)}>
           新建用户
@@ -397,11 +179,7 @@ function UsersTab() {
                         管理员
                       </Tag>
                     )}
-                    {isSelf && (
-                      <Tag bordered={false}>
-                        你
-                      </Tag>
-                    )}
+                    {isSelf && <Tag bordered={false}>你</Tag>}
                   </div>
                   <div className="mt-1 text-xs text-zinc-500">
                     创建 {formatRelative(u.createdAt)}
@@ -429,7 +207,7 @@ function UsersTab() {
                         onClick={() =>
                           modal.confirm({
                             title: `删除用户 ${u.username}?`,
-                            content: '该用户的所有 DashScope 账户、任务、上传都将级联删除',
+                            content: '该用户的所有任务、上传都将级联删除（DashScope 账户保留）',
                             okButtonProps: { danger: true },
                             onOk: () => deleteMut.mutate(u.id),
                           })

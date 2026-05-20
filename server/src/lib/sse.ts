@@ -2,14 +2,14 @@ import type { FastifyReply } from 'fastify';
 import type { SseEvent } from '@bvp/shared';
 
 type Client = {
-  accountId: string;
+  userId: string;
   reply: FastifyReply;
 };
 
 const clients = new Set<Client>();
 
-export function registerSseClient(accountId: string, reply: FastifyReply) {
-  const client: Client = { accountId, reply };
+export function registerSseClient(userId: string, reply: FastifyReply) {
+  const client: Client = { userId, reply };
   clients.add(client);
   reply.raw.on('close', () => clients.delete(client));
   return client;
@@ -18,7 +18,7 @@ export function registerSseClient(accountId: string, reply: FastifyReply) {
 export function broadcast(event: SseEvent) {
   const data = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
   for (const c of clients) {
-    if (c.accountId === event.accountId) {
+    if (c.userId === event.userId) {
       try {
         c.reply.raw.write(data);
       } catch {

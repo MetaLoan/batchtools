@@ -19,6 +19,7 @@ import { startPoller } from './services/poller.js';
 import { startCleanup } from './services/cleanup.js';
 import { rebuildConcurrencyFromDb } from './services/concurrency.js';
 import { bootstrapInitialAdmin } from './bootstrap.js';
+import { loadAccountsFromConfig } from './bootstrap-accounts.js';
 
 async function main() {
   runMigrations();
@@ -27,10 +28,12 @@ async function main() {
 
   const app = Fastify({ logger: { level: isProd ? 'info' : 'debug' } });
 
-  bootstrapInitialAdmin({
-    info: (m) => app.log.info(m),
-    warn: (m) => app.log.warn(m),
-  });
+  const bootLog = {
+    info: (m: string) => app.log.info(m),
+    warn: (m: string) => app.log.warn(m),
+  };
+  bootstrapInitialAdmin(bootLog);
+  loadAccountsFromConfig(bootLog);
 
   await app.register(cookie);
   await app.register(multipart, {

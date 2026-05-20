@@ -21,6 +21,9 @@ export const config = {
   // Bootstrap initial admin on first start (only used when no users exist yet)
   initialAdminUsername: process.env.INITIAL_ADMIN_USERNAME ?? 'admin',
   initialAdminPassword: process.env.INITIAL_ADMIN_PASSWORD ?? '',
+  // DashScope accounts are managed centrally via this YAML file (operator/devops territory)
+  accountsConfigFile:
+    process.env.DASHSCOPE_ACCOUNTS_FILE ?? path.join(PROJECT_ROOT, 'accounts.yaml'),
 };
 
 export const isProd = process.env.NODE_ENV === 'production';

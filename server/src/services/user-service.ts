@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { nanoid } from 'nanoid';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { users, accounts, jobs, subJobs, uploads, sessions, accountConcurrency } from '../db/schema.js';
+import { users, jobs, subJobs, uploads, sessions } from '../db/schema.js';
 import { hashPassword, verifyPassword } from '../lib/crypto.js';
 import { config } from '../config.js';
 
@@ -123,33 +123,19 @@ export function updateUser(
 }
 
 export function deleteUser(id: string): boolean {
-  // Find all accounts belonging to this user — needed to clean up uploads on disk
-  const accountIds = db
-    .select({ id: accounts.id })
-    .from(accounts)
-    .where(eq(accounts.userId, id))
-    .all()
-    .map((r) => r.id);
-
-  // Remove on-disk upload files
-  for (const aid of accountIds) {
-    const dir = path.join(config.dataDir, 'uploads', aid);
-    try {
-      fs.rmSync(dir, { recursive: true, force: true });
-    } catch {
-      // ignore
-    }
+  // Remove on-disk upload files for this user
+  const userUploadDir = path.join(config.dataDir, 'uploads', id);
+  try {
+    fs.rmSync(userUploadDir, { recursive: true, force: true });
+  } catch {
+    // ignore
   }
 
-  // Cascade delete within a transaction
+  // Accounts are centrally managed (devops/YAML) so they are NOT deleted with the user.
   db.transaction((tx) => {
-    if (accountIds.length > 0) {
-      tx.delete(subJobs).where(inArray(subJobs.accountId, accountIds)).run();
-      tx.delete(jobs).where(inArray(jobs.accountId, accountIds)).run();
-      tx.delete(uploads).where(inArray(uploads.accountId, accountIds)).run();
-      tx.delete(accountConcurrency).where(inArray(accountConcurrency.accountId, accountIds)).run();
-    }
-    tx.delete(accounts).where(eq(accounts.userId, id)).run();
+    tx.delete(subJobs).where(eq(subJobs.userId, id)).run();
+    tx.delete(jobs).where(eq(jobs.userId, id)).run();
+    tx.delete(uploads).where(eq(uploads.userId, id)).run();
     tx.delete(sessions).where(eq(sessions.userId, id)).run();
     tx.delete(users).where(eq(users.id, id)).run();
   });

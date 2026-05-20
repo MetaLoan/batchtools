@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Empty, App as AntApp, Button, Descriptions, Tooltip } from 'antd';
 import { ArrowLeft, RotateCcw, Download, X } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAppStore } from '../lib/store';
 import { StatusBadge } from '../components/StatusBadge';
 import PreviewWithExpiry from '../components/PreviewWithExpiry';
 import { formatRelative } from '../lib/format';
@@ -11,35 +10,33 @@ import { explainProviderError } from '../lib/error-hints';
 
 export default function TaskDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
-  const accountId = useAppStore((s) => s.currentAccountId);
   const qc = useQueryClient();
   const { message, modal } = AntApp.useApp();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['job', accountId, jobId],
-    queryFn: () => api.getJob(accountId!, jobId!),
-    enabled: !!accountId && !!jobId,
+    queryKey: ['job', jobId],
+    queryFn: () => api.getJob(jobId!),
+    enabled: !!jobId,
     refetchInterval: 3000,
   });
 
   const retryMut = useMutation({
-    mutationFn: (subJobId: string) => api.retrySubJob(accountId!, subJobId),
+    mutationFn: (subJobId: string) => api.retrySubJob(subJobId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['job', accountId, jobId] });
+      qc.invalidateQueries({ queryKey: ['job', jobId] });
       message.success('已重新提交');
     },
     onError: (e: Error) => message.error(e.message),
   });
 
   const cancelMut = useMutation({
-    mutationFn: () => api.cancelJob(accountId!, jobId!),
+    mutationFn: () => api.cancelJob(jobId!),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['job', accountId, jobId] });
+      qc.invalidateQueries({ queryKey: ['job', jobId] });
       message.success('已取消');
     },
   });
 
-  if (!accountId) return <div className="p-6"><Empty description="请先选择账户" /></div>;
   if (isLoading) return <div className="p-6 text-zinc-500">加载中…</div>;
   if (!data) return <div className="p-6"><Empty description="任务不存在" /></div>;
 
