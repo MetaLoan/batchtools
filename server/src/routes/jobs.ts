@@ -14,6 +14,8 @@ import { accountExists } from '../services/account-service.js';
 
 const MediaInputSchema = z.object({
   kind: z.enum([
+    'source_image',
+    'source_video',
     'first_frame',
     'last_frame',
     'first_clip',

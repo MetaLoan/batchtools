@@ -1,13 +1,15 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Type, Video, Film, Wand2, ArrowRight } from 'lucide-react';
+import { Type, Video, Film, Wand2, ArrowRight, ImagePlus, Scissors } from 'lucide-react';
 import { useCapabilities } from '../App';
 
 const CAT_ICON: Record<string, JSX.Element> = {
   t2i: <Type size={20} />,
+  i2i: <ImagePlus size={20} />,
   t2v: <Video size={20} />,
   i2v: <Film size={20} />,
   r2v: <Wand2 size={20} />,
+  v2v: <Scissors size={20} />,
 };
 
 export default function Workbench() {

@@ -1,14 +1,18 @@
 export type CapabilityId =
   | 'qwen.t2i'
+  | 'qwen.image_edit'
   | 'wan2.7.t2v'
   | 'wan2.6.i2v'
   | 'wan2.7.i2v'
   | 'wan2.6.r2v'
-  | 'wan2.7.r2v';
+  | 'wan2.7.r2v'
+  | 'wan2.7.video_edit';
 
-export type CapabilityCategory = 't2i' | 't2v' | 'i2v' | 'r2v';
+export type CapabilityCategory = 't2i' | 'i2i' | 't2v' | 'i2v' | 'r2v' | 'v2v';
 
 export type MediaKind =
+  | 'source_image'
+  | 'source_video'
   | 'first_frame'
   | 'last_frame'
   | 'first_clip'

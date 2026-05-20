@@ -10,6 +10,8 @@ import {
   Video,
   Film,
   Wand2,
+  ImagePlus,
+  Scissors,
   LogOut,
   ChevronDown,
 } from 'lucide-react';
@@ -22,9 +24,11 @@ import AccountSwitcher from './AccountSwitcher';
 
 const CAP_ICONS: Record<string, JSX.Element> = {
   't2i': <Type size={16} />,
+  'i2i': <ImagePlus size={16} />,
   't2v': <Video size={16} />,
   'i2v': <Film size={16} />,
   'r2v': <Wand2 size={16} />,
+  'v2v': <Scissors size={16} />,
 };
 
 export default function AppLayout() {
