@@ -1,5 +1,5 @@
 import { request } from 'undici';
-import type { ProviderContext } from '@bvp/shared';
+import type { ProviderContext, ProviderTaskStatus, ResultAsset } from '@bvp/shared';
 
 export interface DashScopeError extends Error {
   code?: string;
@@ -19,13 +19,33 @@ function buildHeaders(ctx: ProviderContext, opts: { async?: boolean } = {}): Rec
   return headers;
 }
 
+/**
+ * Combine endpoint + path with smart prefixing:
+ *  - aliyuncs.com hosts: auto-prepend /api/v1 if missing
+ *  - everything else (proxies): use endpoint verbatim
+ */
+export function buildDashScopeUrl(endpoint: string, path: string): string {
+  const clean = endpoint.replace(/\/$/, '');
+  const p = path.startsWith('/') ? path : '/' + path;
+  let host = '';
+  try {
+    host = new URL(clean).hostname;
+  } catch {
+    return clean + p;
+  }
+  if (/aliyuncs\.com$/i.test(host) && !/\/api\/v\d+$/.test(clean)) {
+    return clean + '/api/v1' + p;
+  }
+  return clean + p;
+}
+
 export async function dashScopePost<T = unknown>(
-  pathname: string,
+  path: string,
   body: unknown,
   ctx: ProviderContext,
   opts: { async?: boolean } = {}
 ): Promise<T> {
-  const url = ctx.endpoint.replace(/\/$/, '') + pathname;
+  const url = buildDashScopeUrl(ctx.endpoint, path);
   const res = await request(url, {
     method: 'POST',
     headers: buildHeaders(ctx, opts),
@@ -49,11 +69,31 @@ export async function dashScopePost<T = unknown>(
   return parsed as T;
 }
 
-export async function dashScopeGet<T = unknown>(
-  pathname: string,
-  ctx: ProviderContext
-): Promise<T> {
-  const url = ctx.endpoint.replace(/\/$/, '') + pathname;
+/**
+ * Extract a stable task identifier from a submit response.
+ *  - Sprize-style proxy: top-level `request_id`
+ *  - Official DashScope async: `output.task_id`
+ *  - Official DashScope sync (Qwen image gen): no task id — provider should
+ *    return synthetic handle in that case
+ */
+export function extractTaskId(resp: unknown): string | undefined {
+  if (!resp || typeof resp !== 'object') return undefined;
+  const o = resp as Record<string, unknown>;
+  if (o.output && typeof o.output === 'object') {
+    const out = o.output as Record<string, unknown>;
+    if (typeof out.task_id === 'string') return out.task_id;
+  }
+  if (typeof o.request_id === 'string') return o.request_id;
+  return undefined;
+}
+
+/**
+ * Poll a task by id using the per-account queryEndpoint (falling back to endpoint).
+ * Path: `/tasks/{taskId}`.
+ */
+async function getTask(taskId: string, ctx: ProviderContext): Promise<unknown> {
+  const base = ctx.queryEndpoint ?? ctx.endpoint;
+  const url = buildDashScopeUrl(base, '/tasks/' + encodeURIComponent(taskId));
   const res = await request(url, {
     method: 'GET',
     headers: { Authorization: `Bearer ${ctx.apiKey}` },
@@ -73,13 +113,133 @@ export async function dashScopeGet<T = unknown>(
     err.requestId = extractRequestId(parsed);
     throw err;
   }
-  return parsed as T;
+  return parsed;
+}
+
+const STATUS_ACTIVE = new Set(['PENDING', 'PROCESSING', 'RUNNING']);
+const STATUS_TERMINAL_OK = new Set(['SUCCEEDED', 'SUCCESS']);
+const STATUS_TERMINAL_FAIL = new Set(['FAILED']);
+const STATUS_TERMINAL_CANCEL = new Set(['CANCELED', 'CANCELLED']);
+const STATUS_LOST = new Set(['UNKNOWN', 'EXPIRED', 'NOT_FOUND']);
+
+/** Normalize the assortment of status strings the various backends emit. */
+export function normalizeStatus(raw: string | undefined): ProviderTaskStatus {
+  const s = (raw ?? '').toUpperCase();
+  if (STATUS_TERMINAL_OK.has(s)) return 'SUCCEEDED';
+  if (STATUS_TERMINAL_FAIL.has(s)) return 'FAILED';
+  if (STATUS_TERMINAL_CANCEL.has(s)) return 'CANCELED';
+  if (STATUS_LOST.has(s)) return 'UNKNOWN';
+  if (s === 'PROCESSING' || s === 'RUNNING') return 'RUNNING';
+  if (STATUS_ACTIVE.has(s)) return 'PENDING';
+  return 'PENDING';
+}
+
+/**
+ * Extract result URLs from a polled task response. Tolerates 5+ shapes:
+ *  1. top-level `urls[]`
+ *  2. `output.urls[]`
+ *  3. `output.result_urls[]`
+ *  4. `output.video_url` (single)
+ *  5. `output.choices[].message.content[].image` (OpenAI-style)
+ *  6. `output.results[].url` (DashScope qwen async)
+ */
+export function extractResultAssets(resp: unknown): ResultAsset[] {
+  const urls: { kind: 'image' | 'video'; url: string }[] = [];
+  const seen = new Set<string>();
+  const push = (url: string | undefined | null, fallbackKind?: 'image' | 'video') => {
+    if (!url || typeof url !== 'string' || seen.has(url)) return;
+    seen.add(url);
+    const lower = url.toLowerCase();
+    const kind: 'image' | 'video' =
+      fallbackKind ?? (/\.(mp4|mov|webm)(\?|$)/.test(lower) ? 'video' : 'image');
+    urls.push({ kind, url });
+  };
+
+  if (!resp || typeof resp !== 'object') return [];
+  const o = resp as Record<string, unknown>;
+
+  // (1) top-level urls
+  if (Array.isArray(o.urls)) for (const u of o.urls) push(u as string);
+
+  const out = o.output && typeof o.output === 'object' ? (o.output as Record<string, unknown>) : null;
+  if (out) {
+    // (2) output.urls
+    if (Array.isArray(out.urls)) for (const u of out.urls) push(u as string);
+    // (3) output.result_urls
+    if (Array.isArray(out.result_urls)) for (const u of out.result_urls) push(u as string);
+    // (4) output.video_url
+    if (typeof out.video_url === 'string') push(out.video_url, 'video');
+    // (5) output.choices[].message.content[].image
+    if (Array.isArray(out.choices)) {
+      for (const ch of out.choices as Array<Record<string, unknown>>) {
+        const msg = (ch.message ?? {}) as Record<string, unknown>;
+        const content = msg.content;
+        if (Array.isArray(content)) {
+          for (const c of content as Array<Record<string, unknown>>) {
+            if (typeof c.image === 'string') push(c.image, 'image');
+            if (typeof c.video === 'string') push(c.video, 'video');
+          }
+        }
+      }
+    }
+    // (6) output.results[].url
+    if (Array.isArray(out.results)) {
+      for (const r of out.results as Array<Record<string, unknown>>) {
+        if (typeof r.url === 'string') push(r.url);
+      }
+    }
+  }
+
+  const ttl = 24 * 3600 * 1000;
+  const expiresAt = new Date(Date.now() + ttl).toISOString();
+  return urls.map((u) => ({ ...u, expiresAt }));
+}
+
+export interface PolledTask {
+  status: ProviderTaskStatus;
+  resultUrls: ResultAsset[];
+  errorCode?: string;
+  errorMessage?: string;
+  origPrompt?: string;
+  actualPrompt?: string;
+  raw: unknown;
+}
+
+export async function pollTask(taskId: string, ctx: ProviderContext): Promise<PolledTask> {
+  const raw = await getTask(taskId, ctx);
+  const o = (raw as Record<string, unknown>) ?? {};
+  const out = (o.output && typeof o.output === 'object'
+    ? (o.output as Record<string, unknown>)
+    : {}) as Record<string, unknown>;
+
+  const status = normalizeStatus(
+    (typeof out.task_status === 'string' && out.task_status) ||
+      (typeof o.status === 'string' && o.status) ||
+      undefined
+  );
+
+  const errorCode = (out.code as string | undefined) ?? (o.code as string | undefined);
+  const errorMessage =
+    (out.message as string | undefined) ??
+    (o.message as string | undefined) ??
+    (o.error_message as string | undefined);
+
+  return {
+    status,
+    resultUrls: status === 'SUCCEEDED' ? extractResultAssets(raw) : [],
+    errorCode,
+    errorMessage,
+    origPrompt: out.orig_prompt as string | undefined,
+    actualPrompt: out.actual_prompt as string | undefined,
+    raw,
+  };
 }
 
 function extractMessage(obj: unknown): string | undefined {
   if (!obj || typeof obj !== 'object') return;
   const o = obj as Record<string, unknown>;
   if (typeof o.message === 'string') return o.message;
+  if (typeof o.error_message === 'string') return o.error_message;
   if (o.output && typeof o.output === 'object') {
     const out = o.output as Record<string, unknown>;
     if (typeof out.message === 'string') return out.message;
@@ -100,33 +260,4 @@ function extractRequestId(obj: unknown): string | undefined {
   if (!obj || typeof obj !== 'object') return;
   const o = obj as Record<string, unknown>;
   return typeof o.request_id === 'string' ? o.request_id : undefined;
-}
-
-export interface DashScopeTaskResponse {
-  output?: {
-    task_id?: string;
-    task_status?: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'UNKNOWN';
-    code?: string;
-    message?: string;
-    video_url?: string;
-    orig_prompt?: string;
-    actual_prompt?: string;
-    submit_time?: string;
-    scheduled_time?: string;
-    end_time?: string;
-    results?: Array<{ url?: string; orig_prompt?: string; actual_prompt?: string }>;
-  };
-  usage?: Record<string, unknown>;
-  request_id?: string;
-  code?: string;
-  message?: string;
-}
-
-const TASK_PATH = '/api/v1/tasks/';
-
-export async function pollDashScopeTask(
-  taskId: string,
-  ctx: ProviderContext
-): Promise<DashScopeTaskResponse> {
-  return dashScopeGet<DashScopeTaskResponse>(TASK_PATH + taskId, ctx);
 }

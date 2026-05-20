@@ -40,6 +40,13 @@ export interface PollResult {
 export interface ProviderContext {
   apiKey: string;
   endpoint: string;
+  /**
+   * Separate base URL for task polling. Some proxies (e.g. sprize) accept
+   * submits under one prefix (.../proxy/dashscope-v2/services/...) but expose
+   * the result-fetch endpoint under a sibling prefix (.../proxy/tasks/{id}).
+   * When undefined, the poller uses `endpoint` (official DashScope behavior).
+   */
+  queryEndpoint?: string;
   accountId: string;
   requestId: string;
   disableDataInspection?: boolean;
@@ -53,4 +60,10 @@ export interface IProvider {
   cancel?(handle: ProviderHandle, ctx: ProviderContext): Promise<void>;
 }
 
+/** Default DashScope endpoint — sprize.ai proxy that aggregates DashScope international + others. */
+export const DASHSCOPE_DEFAULT_ENDPOINT = 'https://ai.sprize.ai/proxy/dashscope-v2';
+
+/** Direct DashScope endpoints (kept as named constants for clarity). */
 export const DASHSCOPE_SG_ENDPOINT = 'https://dashscope-intl.aliyuncs.com';
+export const DASHSCOPE_CN_ENDPOINT = 'https://dashscope.aliyuncs.com';
+export const DASHSCOPE_US_ENDPOINT = 'https://dashscope-us.aliyuncs.com';

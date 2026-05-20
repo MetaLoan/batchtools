@@ -34,6 +34,7 @@ export function runMigrations() {
       name TEXT NOT NULL,
       api_key_encrypted TEXT NOT NULL,
       endpoint TEXT NOT NULL DEFAULT 'https://dashscope-intl.aliyuncs.com',
+      query_endpoint TEXT,
       disable_data_inspection INTEGER NOT NULL DEFAULT 0,
       policy_json TEXT NOT NULL,
       created_at INTEGER NOT NULL
@@ -152,5 +153,8 @@ export function runMigrations() {
   if (!hasColumn('uploads', 'user_id')) {
     sqlite.exec(`ALTER TABLE uploads ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
     sqlite.exec(`CREATE INDEX IF NOT EXISTS uploads_user_idx ON uploads(user_id)`);
+  }
+  if (!hasColumn('accounts', 'query_endpoint')) {
+    sqlite.exec(`ALTER TABLE accounts ADD COLUMN query_endpoint TEXT`);
   }
 }

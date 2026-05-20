@@ -7,6 +7,7 @@ import { api } from '../lib/api';
 import { useAppStore } from '../lib/store';
 
 const ENDPOINT_SHORT: Record<string, string> = {
+  'https://ai.sprize.ai/proxy/dashscope-v2': '中转',
   'https://dashscope-intl.aliyuncs.com': '新加坡',
   'https://dashscope.aliyuncs.com': '北京',
   'https://dashscope-us.aliyuncs.com': '美西',

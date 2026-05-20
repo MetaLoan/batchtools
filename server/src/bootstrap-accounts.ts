@@ -6,12 +6,13 @@ import { accounts as accountsTable } from './db/schema.js';
 import { config } from './config.js';
 import { encryptSecret } from './lib/crypto.js';
 import { nanoid } from 'nanoid';
-import { DASHSCOPE_SG_ENDPOINT, DEFAULT_ACCOUNT_POLICY } from '@bvp/shared';
+import { DASHSCOPE_DEFAULT_ENDPOINT, DEFAULT_ACCOUNT_POLICY } from '@bvp/shared';
 
 interface AccountConfigEntry {
   name: string;
   apiKey: string;
   endpoint?: string;
+  queryEndpoint?: string;
   disableDataInspection?: boolean;
   policy?: Partial<typeof DEFAULT_ACCOUNT_POLICY>;
 }
@@ -68,7 +69,8 @@ export function loadAccountsFromConfig(log: {
     namesInConfig.add(name);
 
     const policy = { ...DEFAULT_ACCOUNT_POLICY, ...(entry.policy ?? {}) };
-    const endpoint = entry.endpoint?.trim() || DASHSCOPE_SG_ENDPOINT;
+    const endpoint = entry.endpoint?.trim() || DASHSCOPE_DEFAULT_ENDPOINT;
+    const queryEndpoint = entry.queryEndpoint?.trim() || null;
     const disableDI = entry.disableDataInspection ? 1 : 0;
 
     const existing = db.select().from(accountsTable).where(eq(accountsTable.name, name)).get();
@@ -77,6 +79,7 @@ export function loadAccountsFromConfig(log: {
         .set({
           apiKeyEncrypted: encryptSecret(apiKey),
           endpoint,
+          queryEndpoint,
           disableDataInspection: disableDI,
           policyJson: JSON.stringify(policy),
         })
@@ -90,6 +93,7 @@ export function loadAccountsFromConfig(log: {
           name,
           apiKeyEncrypted: encryptSecret(apiKey),
           endpoint,
+          queryEndpoint,
           disableDataInspection: disableDI,
           policyJson: JSON.stringify(policy),
           createdAt: Date.now(),

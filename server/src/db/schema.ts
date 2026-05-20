@@ -24,6 +24,7 @@ export const accounts = sqliteTable(
     name: text('name').notNull(),
     apiKeyEncrypted: text('api_key_encrypted').notNull(),
     endpoint: text('endpoint').notNull().default('https://dashscope-intl.aliyuncs.com'),
+    queryEndpoint: text('query_endpoint'),
     disableDataInspection: integer('disable_data_inspection').notNull().default(0),
     policyJson: text('policy_json').notNull(),
     createdAt: integer('created_at').notNull(),

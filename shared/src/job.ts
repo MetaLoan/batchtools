@@ -82,6 +82,7 @@ export interface AccountSummary {
   id: string;
   name: string;
   endpoint: string;
+  queryEndpoint?: string;
   disableDataInspection: boolean;
   policy: AccountPolicy;
   createdAt: number;

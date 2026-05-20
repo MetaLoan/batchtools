@@ -63,6 +63,7 @@ async function pollOne(row: typeof subJobs.$inferSelect): Promise<void> {
   const ctx: ProviderContext = {
     apiKey,
     endpoint: account.endpoint,
+    queryEndpoint: account.queryEndpoint,
     accountId: account.id,
     requestId: nanoid(),
     disableDataInspection: account.disableDataInspection,

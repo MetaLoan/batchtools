@@ -3,21 +3,31 @@
 # 服务启动时读取本文件并与 DB 对账（按 name 匹配）。
 # 复制为 accounts.yaml 后编辑，accounts.yaml 已在 .gitignore 中。
 #
-# 可选 endpoint:
-#   https://dashscope-intl.aliyuncs.com  (新加坡 — 默认)
-#   https://dashscope.aliyuncs.com       (北京)
-#   https://dashscope-us.aliyuncs.com    (弗吉尼亚)
-# Key 在哪个地域申请的，必须配对应 endpoint，否则会报 InvalidApiKey。
+# 字段说明：
+#   endpoint      — 提交任务的基础 URL（POST /services/...）
+#   queryEndpoint — 查询任务结果的基础 URL（GET /tasks/{request_id}），可选
+#                   不填则使用 endpoint。某些代理（如 sprize）的提交和查询
+#                   走不同前缀路径，必须显式指定。
+#   apiKey        — Bearer token
+#
+# 常见 endpoint:
+#   https://ai.sprize.ai/proxy/dashscope-v2  (sprize 中转 — 默认推荐)
+#     ↳ 配套 queryEndpoint: https://ai.sprize.ai/proxy
+#   https://dashscope-intl.aliyuncs.com      (官方新加坡)
+#   https://dashscope.aliyuncs.com           (官方北京)
+#   https://dashscope-us.aliyuncs.com        (官方弗吉尼亚)
+# 官方直连时不需要 queryEndpoint，代码会自动按 aliyuncs.com 规则处理。
 
 accounts:
   - name: 主号
     apiKey: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    endpoint: https://dashscope-intl.aliyuncs.com
+    endpoint: https://ai.sprize.ai/proxy/dashscope-v2
+    queryEndpoint: https://ai.sprize.ai/proxy
     # disableDataInspection: false   # 可选，默认 false
     # policy:                        # 可选，覆盖默认调度策略
     #   maxConcurrentRunning: 8
     #   submitRatePerMin: 30
 
-  # - name: 备用号
+  # - name: 备号 (官方新加坡直连)
   #   apiKey: sk-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
-  #   endpoint: https://dashscope.aliyuncs.com
+  #   endpoint: https://dashscope-intl.aliyuncs.com

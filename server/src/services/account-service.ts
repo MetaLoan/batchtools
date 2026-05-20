@@ -4,12 +4,14 @@ import type { AccountSummary, AccountPolicy } from '@bvp/shared';
 import { db } from '../db/index.js';
 import { accounts } from '../db/schema.js';
 import { decryptSecret } from '../lib/crypto.js';
+import { buildDashScopeUrl } from '../providers/dashscope/base-client.js';
 
 function rowToSummary(r: typeof accounts.$inferSelect): AccountSummary {
   return {
     id: r.id,
     name: r.name,
     endpoint: r.endpoint,
+    queryEndpoint: r.queryEndpoint ?? undefined,
     disableDataInspection: !!r.disableDataInspection,
     policy: JSON.parse(r.policyJson) as AccountPolicy,
     createdAt: r.createdAt,
@@ -60,7 +62,9 @@ export async function testAccountConnection(id: string): Promise<TestConnectionR
   const apiKey = getAccountApiKey(id);
   if (!apiKey) return { ok: false, message: '账户未配置 API Key' };
 
-  const url = acc.endpoint.replace(/\/$/, '') + '/api/v1/tasks/test-connection-probe';
+  // Use queryEndpoint for the probe since /tasks lives under the query base for sprize-style proxies
+  const probeBase = acc.queryEndpoint ?? acc.endpoint;
+  const url = buildDashScopeUrl(probeBase, '/tasks/test-connection-probe');
   try {
     const res = await request(url, {
       method: 'GET',
