@@ -82,7 +82,9 @@ export function loadAccountsFromConfig(log: {
     const policy = { ...DEFAULT_ACCOUNT_POLICY, ...(entry.policy ?? {}) };
     const endpoint = entry.endpoint?.trim() || DASHSCOPE_DEFAULT_ENDPOINT;
     const queryEndpoint = entry.queryEndpoint?.trim() || null;
-    const disableDI = entry.disableDataInspection ? 1 : 0;
+    // Default: disable DashScope data inspection (X-DashScope-DataInspection: disable).
+    // Set `disableDataInspection: false` in YAML to opt back into inspection.
+    const disableDI = entry.disableDataInspection === false ? 0 : 1;
 
     const existing = db.select().from(accountsTable).where(eq(accountsTable.name, name)).get();
     if (existing) {

@@ -23,7 +23,9 @@ accounts:
     apiKey: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     endpoint: https://ai.sprize.ai/proxy/dashscope-v2
     queryEndpoint: https://ai.sprize.ai/proxy
-    # disableDataInspection: false   # 可选，默认 false
+    # disableDataInspection 默认为 true（关掉 DashScope 服务端内容审查），
+    # 写 false 才会重新启用审查。
+    # disableDataInspection: false
     # policy:                        # 可选，覆盖默认调度策略
     #   maxConcurrentRunning: 8
     #   submitRatePerMin: 30
