@@ -7,6 +7,7 @@ import {
   getAccountForUser,
   listAccountsForUser,
   updateAccountForUser,
+  testAccountConnection,
 } from '../services/account-service.js';
 
 const CreateAccountBody = z.object({
@@ -76,5 +77,11 @@ export async function accountRoutes(app: FastifyInstance) {
       return;
     }
     reply.send(acc);
+  });
+
+  app.post('/v1/accounts/:id/test', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const result = await testAccountConnection(req.currentUser!.id, id);
+    reply.send(result);
   });
 }

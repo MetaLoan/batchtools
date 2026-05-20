@@ -91,8 +91,13 @@ export const api = {
     disableDataInspection?: boolean;
   }) => http<AccountSummary>('/v1/accounts', { method: 'POST', body: JSON.stringify(input) }),
   deleteAccount: (id: string) => http<{ ok: true }>(`/v1/accounts/${id}`, { method: 'DELETE' }),
-  updateAccount: (id: string, patch: Partial<{ name: string; apiKey: string; disableDataInspection: boolean }>) =>
+  updateAccount: (id: string, patch: Partial<{ name: string; apiKey: string; endpoint: string; disableDataInspection: boolean }>) =>
     http<AccountSummary>(`/v1/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  testAccount: (id: string) =>
+    http<{ ok: boolean; status?: number; code?: string; message?: string; hint?: string }>(
+      `/v1/accounts/${id}/test`,
+      { method: 'POST' }
+    ),
 
   // Jobs
   createJob: (input: {

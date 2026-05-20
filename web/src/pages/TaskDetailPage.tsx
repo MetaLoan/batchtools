@@ -7,6 +7,7 @@ import { useAppStore } from '../lib/store';
 import { StatusBadge } from '../components/StatusBadge';
 import PreviewWithExpiry from '../components/PreviewWithExpiry';
 import { formatRelative } from '../lib/format';
+import { explainProviderError } from '../lib/error-hints';
 
 export default function TaskDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -133,13 +134,21 @@ export default function TaskDetailPage() {
               </div>
             )}
 
-            {s.errorMessage && (
-              <Tooltip title={s.errorMessage}>
-                <div className="mt-2 truncate rounded bg-rose-500/10 px-2 py-1 text-xs text-rose-300">
-                  {s.errorCode ?? 'Error'}: {s.errorMessage}
-                </div>
-              </Tooltip>
-            )}
+            {s.errorMessage && (() => {
+              const exp = explainProviderError(s.errorCode, s.errorMessage);
+              return (
+                <Tooltip title={`${s.errorCode ?? ''} ${s.errorMessage ?? ''}`.trim()}>
+                  <div className="mt-2 rounded bg-rose-500/10 px-2 py-1.5 text-xs text-rose-300">
+                    <div className="font-medium">{exp.title}</div>
+                    {exp.hints.slice(0, 2).map((h, i) => (
+                      <div key={i} className="mt-0.5 text-[11px] opacity-80">
+                        · {h}
+                      </div>
+                    ))}
+                  </div>
+                </Tooltip>
+              );
+            })()}
 
             {(s.status === 'FAILED' ||
               s.status === 'DEAD' ||

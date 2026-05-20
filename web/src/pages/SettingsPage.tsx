@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Modal, Form, Input, App as AntApp, Switch, Empty, Tag, Tooltip, Tabs } from 'antd';
-import { Trash2, Plus, KeyRound, UserPlus, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Button, Modal, Form, Input, App as AntApp, Switch, Empty, Tag, Tooltip, Tabs, Select } from 'antd';
+import { Trash2, Plus, KeyRound, UserPlus, ShieldCheck, ShieldOff, CheckCircle2, AlertTriangle, Wifi } from 'lucide-react';
 import { api, type CurrentUser } from '../lib/api';
 import { useAppStore } from '../lib/store';
 import { formatRelative } from '../lib/format';
@@ -31,6 +31,16 @@ export default function SettingsPage() {
   );
 }
 
+const ENDPOINT_OPTIONS = [
+  { value: 'https://dashscope-intl.aliyuncs.com', label: '🇸🇬 新加坡', short: '新加坡' },
+  { value: 'https://dashscope.aliyuncs.com', label: '🇨🇳 北京', short: '北京' },
+  { value: 'https://dashscope-us.aliyuncs.com', label: '🇺🇸 美西 (弗吉尼亚)', short: '美西' },
+];
+
+function endpointShortName(url: string): string {
+  return ENDPOINT_OPTIONS.find((o) => o.value === url)?.short ?? '自定义';
+}
+
 function DashScopeAccountsTab() {
   const qc = useQueryClient();
   const { message, modal } = AntApp.useApp();
@@ -38,6 +48,7 @@ function DashScopeAccountsTab() {
   const setAccountId = useAppStore((s) => s.setCurrentAccountId);
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; label: string; hint?: string }>>({});
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts'],
@@ -45,7 +56,7 @@ function DashScopeAccountsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (input: { name: string; apiKey: string; disableDataInspection?: boolean }) =>
+    mutationFn: (input: { name: string; apiKey: string; endpoint?: string; disableDataInspection?: boolean }) =>
       api.createAccount(input),
     onSuccess: (acc) => {
       qc.invalidateQueries({ queryKey: ['accounts'] });
@@ -53,6 +64,25 @@ function DashScopeAccountsTab() {
       setOpen(false);
       form.resetFields();
       message.success('账户已添加');
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  const testMut = useMutation({
+    mutationFn: (id: string) => api.testAccount(id).then((r) => ({ id, r })),
+    onSuccess: ({ id, r }) => {
+      setTestResults((prev) => ({
+        ...prev,
+        [id]: {
+          ok: r.ok,
+          label: r.ok
+            ? r.message ?? '连接正常'
+            : `${r.code ?? '错误'}${r.message ? ': ' + r.message : ''}`,
+          hint: r.hint,
+        },
+      }));
+      if (r.ok) message.success('连接正常');
+      else message.error(r.hint ?? r.message ?? '连接失败');
     },
     onError: (e: Error) => message.error(e.message),
   });
@@ -84,57 +114,86 @@ function DashScopeAccountsTab() {
         </Empty>
       ) : (
         <div className="space-y-2">
-          {accounts.map((a) => (
-            <div
-              key={a.id}
-              className={`surface flex items-center justify-between p-4 ${
-                accountId === a.id ? '!border-brand-500/60' : ''
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <KeyRound size={14} className="text-brand-400" />
-                  <span className="text-sm font-medium">{a.name}</span>
-                  {accountId === a.id && (
-                    <Tag color="processing" bordered={false}>
-                      当前
-                    </Tag>
-                  )}
-                  {a.disableDataInspection && (
-                    <Tooltip title="X-DashScope-DataInspection: disable">
-                      <Tag color="warning" bordered={false}>
-                        关数据检查
+          {accounts.map((a) => {
+            const test = testResults[a.id];
+            return (
+              <div
+                key={a.id}
+                className={`surface p-4 ${accountId === a.id ? '!border-brand-500/60' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <KeyRound size={14} className="text-brand-400" />
+                      <span className="text-sm font-medium">{a.name}</span>
+                      <Tag bordered={false} color="default">
+                        {endpointShortName(a.endpoint)}
                       </Tag>
-                    </Tooltip>
-                  )}
+                      {accountId === a.id && (
+                        <Tag color="processing" bordered={false}>
+                          当前
+                        </Tag>
+                      )}
+                      {a.disableDataInspection && (
+                        <Tooltip title="X-DashScope-DataInspection: disable">
+                          <Tag color="warning" bordered={false}>
+                            关数据检查
+                          </Tag>
+                        </Tooltip>
+                      )}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      并发 {a.policy.maxConcurrentRunning} · 速率 {a.policy.submitRatePerMin}/min · 创建{' '}
+                      {formatRelative(a.createdAt)}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      size="small"
+                      icon={<Wifi size={12} />}
+                      loading={testMut.isPending && testMut.variables === a.id}
+                      onClick={() => testMut.mutate(a.id)}
+                    >
+                      测试
+                    </Button>
+                    {accountId !== a.id && (
+                      <Button size="small" onClick={() => setAccountId(a.id)}>
+                        切换
+                      </Button>
+                    )}
+                    <Button
+                      size="small"
+                      danger
+                      icon={<Trash2 size={12} />}
+                      onClick={() =>
+                        modal.confirm({
+                          title: `删除账户 ${a.name}?`,
+                          content: '这只删除本地配置，DashScope 端的 API Key 不会受影响',
+                          okButtonProps: { danger: true },
+                          onOk: () => deleteMut.mutate(a.id),
+                        })
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="mt-1 text-xs text-zinc-500">
-                  并发 {a.policy.maxConcurrentRunning} · 速率 {a.policy.submitRatePerMin}/min · 创建{' '}
-                  {formatRelative(a.createdAt)}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {accountId !== a.id && (
-                  <Button size="small" onClick={() => setAccountId(a.id)}>
-                    切换
-                  </Button>
+                {test && (
+                  <div
+                    className={`mt-2 flex items-start gap-2 rounded-md px-3 py-2 text-xs ${
+                      test.ok
+                        ? 'bg-emerald-500/10 text-emerald-300'
+                        : 'bg-rose-500/10 text-rose-300'
+                    }`}
+                  >
+                    {test.ok ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                    <div className="min-w-0 flex-1">
+                      <div>{test.label}</div>
+                      {test.hint && <div className="mt-0.5 text-[11px] opacity-80">{test.hint}</div>}
+                    </div>
+                  </div>
                 )}
-                <Button
-                  size="small"
-                  danger
-                  icon={<Trash2 size={12} />}
-                  onClick={() =>
-                    modal.confirm({
-                      title: `删除账户 ${a.name}?`,
-                      content: '这只删除本地配置，DashScope 端的 API Key 不会受影响',
-                      okButtonProps: { danger: true },
-                      onOk: () => deleteMut.mutate(a.id),
-                    })
-                  }
-                />
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -151,16 +210,28 @@ function DashScopeAccountsTab() {
           form={form}
           layout="vertical"
           onFinish={(v) => createMut.mutate(v)}
-          initialValues={{ disableDataInspection: false }}
+          initialValues={{
+            disableDataInspection: false,
+            endpoint: 'https://dashscope-intl.aliyuncs.com',
+          }}
         >
           <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
             <Input placeholder="主号 / 测试号 ..." />
           </Form.Item>
           <Form.Item
+            name="endpoint"
+            label="DashScope 地域"
+            rules={[{ required: true, message: '请选择地域' }]}
+            extra="Key 在哪个地域申请的就选哪个；选错会报 InvalidApiKey"
+          >
+            <Select options={ENDPOINT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))} />
+          </Form.Item>
+          <Form.Item
             name="apiKey"
             label="DashScope API Key"
             rules={[{ required: true, message: '请输入 API Key' }]}
-            extra="存储时会加密，仅在调用 DashScope 时解密"
+            normalize={(v: string) => (typeof v === 'string' ? v.trim() : v)}
+            extra="存储时会加密，仅在调用 DashScope 时解密。粘贴前后的空格会自动去掉"
           >
             <Input.Password placeholder="sk-..." />
           </Form.Item>
