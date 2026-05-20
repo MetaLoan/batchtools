@@ -152,7 +152,11 @@ export default function CapabilityPage() {
           </div>
 
           <div className="space-y-5">
-            <Section title="批量扫参矩阵" icon={<Layers size={16} />}>
+            <Section
+              title="生成数量与变化"
+              icon={<Layers size={16} />}
+              hint="默认生成 1 个。想一次出多个版本？选一个常用模式即可。"
+            >
               <BatchMatrixDesigner
                 capability={cap}
                 modelVariant={modelVariant}
@@ -204,17 +208,22 @@ export default function CapabilityPage() {
 function Section({
   title,
   icon,
+  hint,
   children,
 }: {
   title: string;
   icon?: JSX.Element;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="surface p-4 sm:p-5">
-      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-zinc-200">
-        {icon}
-        <span>{title}</span>
+      <div className="mb-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-zinc-200">
+          {icon}
+          <span>{title}</span>
+        </div>
+        {hint && <div className="mt-1 text-xs text-zinc-500">{hint}</div>}
       </div>
       {children}
     </div>
