@@ -1,7 +1,12 @@
-import 'dotenv/config';
 import path from 'node:path';
+import dotenv from 'dotenv';
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '..', '..');
+
+// Load .env from project root regardless of cwd
+dotenv.config({ path: path.join(PROJECT_ROOT, '.env') });
+// Also load server/.env as a fallback (for deployment overrides)
+dotenv.config({ path: path.join(PROJECT_ROOT, 'server', '.env'), override: false });
 
 export const config = {
   port: Number(process.env.PORT ?? 3000),
