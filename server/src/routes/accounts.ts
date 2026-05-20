@@ -3,10 +3,10 @@ import { z } from 'zod';
 import { requireAuth } from '../lib/auth.js';
 import {
   createAccount,
-  deleteAccount,
-  getAccount,
-  listAccounts,
-  updateAccount,
+  deleteAccountForUser,
+  getAccountForUser,
+  listAccountsForUser,
+  updateAccountForUser,
 } from '../services/account-service.js';
 
 const CreateAccountBody = z.object({
@@ -29,8 +29,8 @@ const UpdateAccountBody = CreateAccountBody.partial();
 export async function accountRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
 
-  app.get('/v1/accounts', async () => {
-    return { accounts: listAccounts() };
+  app.get('/v1/accounts', async (req) => {
+    return { accounts: listAccountsForUser(req.currentUser!.id) };
   });
 
   app.post('/v1/accounts', async (req, reply) => {
@@ -39,7 +39,7 @@ export async function accountRoutes(app: FastifyInstance) {
       reply.code(400).send({ error: parsed.error.flatten() });
       return;
     }
-    const acc = createAccount(parsed.data);
+    const acc = createAccount({ ...parsed.data, userId: req.currentUser!.id });
     reply.code(201).send(acc);
   });
 
@@ -50,7 +50,7 @@ export async function accountRoutes(app: FastifyInstance) {
       reply.code(400).send({ error: parsed.error.flatten() });
       return;
     }
-    const acc = updateAccount(id, parsed.data);
+    const acc = updateAccountForUser(req.currentUser!.id, id, parsed.data);
     if (!acc) {
       reply.code(404).send({ error: 'Not found' });
       return;
@@ -60,7 +60,7 @@ export async function accountRoutes(app: FastifyInstance) {
 
   app.delete('/v1/accounts/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const ok = deleteAccount(id);
+    const ok = deleteAccountForUser(req.currentUser!.id, id);
     if (!ok) {
       reply.code(404).send({ error: 'Not found' });
       return;
@@ -70,7 +70,7 @@ export async function accountRoutes(app: FastifyInstance) {
 
   app.get('/v1/accounts/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const acc = getAccount(id);
+    const acc = getAccountForUser(req.currentUser!.id, id);
     if (!acc) {
       reply.code(404).send({ error: 'Not found' });
       return;

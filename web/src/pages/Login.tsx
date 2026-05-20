@@ -1,21 +1,21 @@
 import { useState } from 'react';
 import { Form, Input, Button, App as AntApp } from 'antd';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, User, Lock } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { api } from '../lib/api';
+import { api, type CurrentUser } from '../lib/api';
 
-export default function Login({ onAuthed }: { onAuthed: () => void }) {
+export default function Login({ onAuthed }: { onAuthed: (user: CurrentUser) => void }) {
   const [loading, setLoading] = useState(false);
   const { message } = AntApp.useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
-  async function onFinish({ password }: { password: string }) {
+  async function onFinish({ username, password }: { username: string; password: string }) {
     setLoading(true);
     try {
-      await api.login(password);
-      onAuthed();
+      const r = await api.login(username.trim(), password);
+      onAuthed(r.user);
       const from = (location.state as { from?: string } | null)?.from ?? '/';
       navigate(from, { replace: true });
     } catch (e) {
@@ -38,16 +38,23 @@ export default function Login({ onAuthed }: { onAuthed: () => void }) {
             <Sparkles size={24} />
           </div>
           <h1 className="text-2xl font-semibold">批量素材推广平台</h1>
-          <p className="text-sm text-zinc-500">DashScope · 新加坡站 · 个人/小团队工具</p>
+          <p className="text-sm text-zinc-500">DashScope · 新加坡站 · 多人协作</p>
         </div>
         <div className="surface p-6">
           <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
             <Form.Item
+              name="username"
+              label="用户名"
+              rules={[{ required: true, message: '请输入用户名' }]}
+            >
+              <Input size="large" autoFocus prefix={<User size={14} className="text-zinc-500" />} placeholder="username" />
+            </Form.Item>
+            <Form.Item
               name="password"
-              label="访问密码"
+              label="密码"
               rules={[{ required: true, message: '请输入密码' }]}
             >
-              <Input.Password size="large" autoFocus placeholder="APP_PASSWORD" />
+              <Input.Password size="large" prefix={<Lock size={14} className="text-zinc-500" />} placeholder="password" />
             </Form.Item>
             <Button type="primary" htmlType="submit" loading={loading} size="large" block>
               登录
@@ -55,7 +62,7 @@ export default function Login({ onAuthed }: { onAuthed: () => void }) {
           </Form>
         </div>
         <p className="mt-4 text-center text-xs text-zinc-600">
-          首次使用请通过环境变量 APP_PASSWORD 配置密码
+          首次启动会从环境变量 INITIAL_ADMIN_USERNAME / INITIAL_ADMIN_PASSWORD 初始化管理员
         </p>
       </motion.div>
     </div>

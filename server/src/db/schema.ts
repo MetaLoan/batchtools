@@ -1,14 +1,37 @@
 import { sqliteTable, text, integer, real, primaryKey, index } from 'drizzle-orm/sqlite-core';
 
-export const accounts = sqliteTable('accounts', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  apiKeyEncrypted: text('api_key_encrypted').notNull(),
-  endpoint: text('endpoint').notNull().default('https://dashscope-intl.aliyuncs.com'),
-  disableDataInspection: integer('disable_data_inspection').notNull().default(0),
-  policyJson: text('policy_json').notNull(),
-  createdAt: integer('created_at').notNull(),
-});
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    username: text('username').notNull().unique(),
+    passwordHash: text('password_hash').notNull(),
+    isAdmin: integer('is_admin').notNull().default(0),
+    displayName: text('display_name'),
+    createdAt: integer('created_at').notNull(),
+    lastLoginAt: integer('last_login_at'),
+  },
+  (t) => ({
+    byUsername: index('users_username_idx').on(t.username),
+  })
+);
+
+export const accounts = sqliteTable(
+  'accounts',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    name: text('name').notNull(),
+    apiKeyEncrypted: text('api_key_encrypted').notNull(),
+    endpoint: text('endpoint').notNull().default('https://dashscope-intl.aliyuncs.com'),
+    disableDataInspection: integer('disable_data_inspection').notNull().default(0),
+    policyJson: text('policy_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    byUser: index('accounts_user_idx').on(t.userId),
+  })
+);
 
 export const uploads = sqliteTable(
   'uploads',
@@ -101,8 +124,15 @@ export const accountConcurrency = sqliteTable(
   })
 );
 
-export const sessions = sqliteTable('sessions', {
-  id: text('id').primaryKey(),
-  createdAt: integer('created_at').notNull(),
-  expiresAt: integer('expires_at').notNull(),
-});
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => ({
+    byUser: index('sessions_user_idx').on(t.userId),
+  })
+);

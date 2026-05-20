@@ -9,6 +9,15 @@ import type {
   BatchMatrix,
 } from '@bvp/shared';
 
+export interface CurrentUser {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  displayName?: string;
+  createdAt: number;
+  lastLoginAt?: number;
+}
+
 async function http<T>(input: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(input, {
     credentials: 'include',
@@ -44,14 +53,36 @@ export class ApiError extends Error {
 
 export const api = {
   // Auth
-  login: (password: string) => http<{ ok: true }>('/v1/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  login: (username: string, password: string) =>
+    http<{ ok: true; user: CurrentUser }>('/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
   logout: () => http<{ ok: true }>('/v1/auth/logout', { method: 'POST' }),
-  me: () => http<{ authenticated: boolean }>('/v1/auth/me'),
+  me: () => http<{ authenticated: boolean; user?: CurrentUser }>('/v1/auth/me'),
+  changePassword: (oldPassword: string, newPassword: string) =>
+    http<{ ok: true }>('/v1/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ oldPassword, newPassword }),
+    }),
+
+  // Users (admin)
+  listUsers: () => http<{ users: CurrentUser[] }>('/v1/users'),
+  createUser: (input: { username: string; password: string; displayName?: string; isAdmin?: boolean }) =>
+    http<CurrentUser>('/v1/users', { method: 'POST', body: JSON.stringify(input) }),
+  updateUser: (id: string, patch: { displayName?: string; isAdmin?: boolean }) =>
+    http<CurrentUser>(`/v1/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  resetUserPassword: (id: string, newPassword: string) =>
+    http<{ ok: true }>(`/v1/users/${id}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ newPassword }),
+    }),
+  deleteUser: (id: string) => http<{ ok: true }>(`/v1/users/${id}`, { method: 'DELETE' }),
 
   // Capabilities
   listCapabilities: () => http<{ capabilities: Capability[] }>('/v1/capabilities'),
 
-  // Accounts
+  // Accounts (scoped to current user)
   listAccounts: () => http<{ accounts: AccountSummary[] }>('/v1/accounts'),
   createAccount: (input: {
     name: string;

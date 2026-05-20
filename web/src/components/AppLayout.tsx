@@ -15,9 +15,9 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useCapabilities } from '../App';
-import { useAppStore } from '../lib/store';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { useAppStore } from '../lib/store';
 import AccountSwitcher from './AccountSwitcher';
 
 const CAP_ICONS: Record<string, JSX.Element> = {
@@ -236,6 +236,7 @@ function MobileTab({
 
 function UserMenu() {
   const navigate = useNavigate();
+  const currentUser = useAppStore((s) => s.currentUser);
   async function logout() {
     await api.logout();
     window.location.href = '/login';
@@ -250,8 +251,20 @@ function UserMenu() {
       }}
       trigger={['click']}
     >
-      <button className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-900">
-        <span>账户与设置</span>
+      <button className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm text-zinc-300 hover:bg-zinc-900">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-medium text-brand-300">
+            {(currentUser?.username ?? '?').slice(0, 1).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-left text-sm">
+              {currentUser?.displayName ?? currentUser?.username ?? '未登录'}
+            </div>
+            {currentUser?.isAdmin && (
+              <div className="text-left text-[10px] text-brand-400">管理员</div>
+            )}
+          </div>
+        </div>
         <ChevronDown size={14} />
       </button>
     </Dropdown>

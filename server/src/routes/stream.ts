@@ -1,10 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../lib/auth.js';
 import { registerSseClient } from '../lib/sse.js';
+import { accountBelongsToUser } from '../services/account-service.js';
 
 export async function streamRoutes(app: FastifyInstance) {
   app.get('/v1/stream/:accountId', { preHandler: requireAuth }, async (req, reply) => {
     const { accountId } = req.params as { accountId: string };
+    if (!accountBelongsToUser(req.currentUser!.id, accountId)) {
+      reply.code(403).send({ error: '账户不存在或无权访问' });
+      return;
+    }
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',

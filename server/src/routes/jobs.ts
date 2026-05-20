@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../lib/auth.js';
 import { hasCapability } from '../providers/index.js';
@@ -10,6 +10,7 @@ import {
   listSubJobs,
   retrySubJob,
 } from '../services/job-service.js';
+import { accountBelongsToUser } from '../services/account-service.js';
 
 const MediaInputSchema = z.object({
   kind: z.enum([
@@ -71,6 +72,14 @@ const RetryBody = z.object({
   paramOverride: z.record(z.unknown()).optional(),
 });
 
+function ensureAccountOwnership(req: FastifyRequest, reply: FastifyReply, accountId: string): boolean {
+  if (!accountBelongsToUser(req.currentUser!.id, accountId)) {
+    reply.code(403).send({ error: '账户不存在或无权访问' });
+    return false;
+  }
+  return true;
+}
+
 export async function jobRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
 
@@ -85,6 +94,7 @@ export async function jobRoutes(app: FastifyInstance) {
       reply.code(400).send({ error: `Unknown capability: ${body.capabilityId}` });
       return;
     }
+    if (!ensureAccountOwnership(req, reply, body.accountId)) return;
     try {
       const result = createJob({
         accountId: body.accountId,
@@ -108,9 +118,10 @@ export async function jobRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get('/v1/jobs', async (req) => {
+  app.get('/v1/jobs', async (req, reply) => {
     const { accountId, limit } = req.query as { accountId?: string; limit?: string };
     if (!accountId) return { jobs: [] };
+    if (!ensureAccountOwnership(req, reply, accountId)) return;
     return { jobs: listJobs(accountId, limit ? Number(limit) : 50) };
   });
 
@@ -121,6 +132,7 @@ export async function jobRoutes(app: FastifyInstance) {
       reply.code(400).send({ error: 'accountId required' });
       return;
     }
+    if (!ensureAccountOwnership(req, reply, accountId)) return;
     const job = getJob(accountId, id);
     if (!job) {
       reply.code(404).send({ error: 'Not found' });
@@ -137,6 +149,7 @@ export async function jobRoutes(app: FastifyInstance) {
       reply.code(400).send({ error: 'accountId required' });
       return;
     }
+    if (!ensureAccountOwnership(req, reply, accountId)) return;
     const count = cancelJob(accountId, id);
     reply.send({ canceled: count });
   });
@@ -148,6 +161,7 @@ export async function jobRoutes(app: FastifyInstance) {
       reply.code(400).send({ error: 'accountId required' });
       return;
     }
+    if (!ensureAccountOwnership(req, reply, accountId)) return;
     const parsed = RetryBody.safeParse(rest);
     if (!parsed.success) {
       reply.code(400).send({ error: parsed.error.flatten() });

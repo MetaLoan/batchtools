@@ -17,8 +17,20 @@ export const db = drizzle(sqlite, { schema });
 
 export function runMigrations() {
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      is_admin INTEGER NOT NULL DEFAULT 0,
+      display_name TEXT,
+      created_at INTEGER NOT NULL,
+      last_login_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS users_username_idx ON users(username);
+
     CREATE TABLE IF NOT EXISTS accounts (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
       name TEXT NOT NULL,
       api_key_encrypted TEXT NOT NULL,
       endpoint TEXT NOT NULL DEFAULT 'https://dashscope-intl.aliyuncs.com',
@@ -26,6 +38,7 @@ export function runMigrations() {
       policy_json TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS accounts_user_idx ON accounts(user_id);
 
     CREATE TABLE IF NOT EXISTS uploads (
       id TEXT PRIMARY KEY,
@@ -100,8 +113,27 @@ export function runMigrations() {
 
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       expires_at INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
   `);
+
+  // Backward-compatible migrations for existing deployments:
+  // add user_id columns to legacy tables if missing.
+  const hasColumn = (table: string, col: string) => {
+    const rows = sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    return rows.some((r) => r.name === col);
+  };
+  if (!hasColumn('accounts', 'user_id')) {
+    sqlite.exec(`ALTER TABLE accounts ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS accounts_user_idx ON accounts(user_id)`);
+  }
+  if (!hasColumn('sessions', 'user_id')) {
+    // Sessions with no user binding are invalid; drop them.
+    sqlite.exec(`DELETE FROM sessions`);
+    sqlite.exec(`ALTER TABLE sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id)`);
+  }
 }

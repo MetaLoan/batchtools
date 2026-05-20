@@ -2,7 +2,7 @@ import { eq, and, asc, lte, or, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { subJobs, jobs } from '../db/schema.js';
 import { getProvider } from '../providers/index.js';
-import { getAccount, getAccountApiKey } from './account-service.js';
+import { getAccountInternal as getAccount, getAccountApiKey } from './account-service.js';
 import { broadcast } from '../lib/sse.js';
 import {
   globalSubmitBucket,

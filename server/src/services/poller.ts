@@ -2,7 +2,7 @@ import { eq, and, sql, lte, or, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { subJobs, jobs } from '../db/schema.js';
 import { getProvider } from '../providers/index.js';
-import { getAccount, getAccountApiKey } from './account-service.js';
+import { getAccountInternal as getAccount, getAccountApiKey } from './account-service.js';
 import { broadcast } from '../lib/sse.js';
 import { globalPollBucket } from './token-bucket.js';
 import { decrementInFlight } from './concurrency.js';

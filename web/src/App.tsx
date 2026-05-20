@@ -16,31 +16,32 @@ import { useSse } from './lib/sse';
 
 export default function App() {
   const [bootstrap, setBootstrap] = useState<'pending' | 'ready'>('pending');
-  const [authed, setAuthed] = useState(false);
   const location = useLocation();
+  const currentUser = useAppStore((s) => s.currentUser);
+  const setCurrentUser = useAppStore((s) => s.setCurrentUser);
   const accountId = useAppStore((s) => s.currentAccountId);
 
   useEffect(() => {
     api
       .me()
-      .then((r) => setAuthed(r.authenticated))
-      .catch(() => setAuthed(false))
+      .then((r) => setCurrentUser(r.authenticated && r.user ? r.user : null))
+      .catch(() => setCurrentUser(null))
       .finally(() => setBootstrap('ready'));
-  }, []);
+  }, [setCurrentUser]);
 
-  useSse(authed ? accountId : null);
+  useSse(currentUser ? accountId : null);
 
   if (bootstrap === 'pending') {
     return <div className="flex h-screen items-center justify-center text-zinc-500">Loading…</div>;
   }
 
-  if (!authed && location.pathname !== '/login') {
+  if (!currentUser && location.pathname !== '/login') {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   return (
     <Routes>
-      <Route path="/login" element={<Login onAuthed={() => setAuthed(true)} />} />
+      <Route path="/login" element={<Login onAuthed={setCurrentUser} />} />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Workbench />} />
         <Route path="/c/:capabilityId" element={<CapabilityPage />} />

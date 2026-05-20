@@ -8,6 +8,7 @@ import { config, isProd } from './config.js';
 import { runMigrations } from './db/index.js';
 import { registerAllProviders } from './providers/index.js';
 import { authRoutes } from './routes/auth.js';
+import { userRoutes } from './routes/users.js';
 import { accountRoutes } from './routes/accounts.js';
 import { capabilityRoutes } from './routes/capabilities.js';
 import { jobRoutes } from './routes/jobs.js';
@@ -17,6 +18,7 @@ import { startScheduler } from './services/scheduler.js';
 import { startPoller } from './services/poller.js';
 import { startCleanup } from './services/cleanup.js';
 import { rebuildConcurrencyFromDb } from './services/concurrency.js';
+import { bootstrapInitialAdmin } from './bootstrap.js';
 
 async function main() {
   runMigrations();
@@ -25,12 +27,18 @@ async function main() {
 
   const app = Fastify({ logger: { level: isProd ? 'info' : 'debug' } });
 
+  bootstrapInitialAdmin({
+    info: (m) => app.log.info(m),
+    warn: (m) => app.log.warn(m),
+  });
+
   await app.register(cookie);
   await app.register(multipart, {
     limits: { fileSize: config.uploadMaxBytes },
   });
 
   await app.register(authRoutes);
+  await app.register(userRoutes);
   await app.register(accountRoutes);
   await app.register(capabilityRoutes);
   await app.register(jobRoutes);
