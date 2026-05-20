@@ -1,0 +1,107 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { config } from '../config.js';
+import * as schema from './schema.js';
+
+fs.mkdirSync(config.dataDir, { recursive: true });
+const dbPath = path.join(config.dataDir, 'app.db');
+
+export const sqlite = new Database(dbPath);
+sqlite.pragma('journal_mode = WAL');
+sqlite.pragma('foreign_keys = ON');
+sqlite.pragma('synchronous = NORMAL');
+
+export const db = drizzle(sqlite, { schema });
+
+export function runMigrations() {
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      api_key_encrypted TEXT NOT NULL,
+      endpoint TEXT NOT NULL DEFAULT 'https://dashscope-intl.aliyuncs.com',
+      disable_data_inspection INTEGER NOT NULL DEFAULT 0,
+      policy_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS uploads (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      bytes INTEGER NOT NULL,
+      storage_path TEXT NOT NULL,
+      signed_key TEXT NOT NULL,
+      public_url TEXT NOT NULL,
+      width INTEGER,
+      height INTEGER,
+      duration_sec REAL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS uploads_account_idx ON uploads(account_id);
+    CREATE INDEX IF NOT EXISTS uploads_expires_idx ON uploads(expires_at);
+
+    CREATE TABLE IF NOT EXISTS jobs (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL,
+      capability_id TEXT NOT NULL,
+      model_variant TEXT NOT NULL,
+      base_prompt TEXT,
+      base_negative_prompt TEXT,
+      base_media_json TEXT NOT NULL DEFAULT '[]',
+      base_parameters_json TEXT NOT NULL DEFAULT '{}',
+      batch_matrix_json TEXT NOT NULL DEFAULT '{"axes":[]}',
+      total_sub_jobs INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 50,
+      created_at INTEGER NOT NULL,
+      finished_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS jobs_account_status_idx ON jobs(account_id, status);
+    CREATE INDEX IF NOT EXISTS jobs_created_at_idx ON jobs(created_at);
+
+    CREATE TABLE IF NOT EXISTS sub_jobs (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      capability_id TEXT NOT NULL,
+      index_in_job INTEGER NOT NULL,
+      axes_json TEXT NOT NULL DEFAULT '{}',
+      params_snapshot_json TEXT NOT NULL,
+      status TEXT NOT NULL,
+      provider_task_id TEXT,
+      is_synthetic INTEGER NOT NULL DEFAULT 0,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error_json TEXT,
+      result_urls_json TEXT,
+      orig_prompt TEXT,
+      actual_prompt TEXT,
+      poll_next_at INTEGER,
+      poll_state_json TEXT,
+      submitted_at INTEGER,
+      finished_at INTEGER,
+      origin_sub_job_id TEXT,
+      version INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE INDEX IF NOT EXISTS sub_jobs_job_idx ON sub_jobs(job_id);
+    CREATE INDEX IF NOT EXISTS sub_jobs_account_status_idx ON sub_jobs(account_id, status);
+    CREATE INDEX IF NOT EXISTS sub_jobs_status_poll_idx ON sub_jobs(status, poll_next_at);
+
+    CREATE TABLE IF NOT EXISTS account_concurrency (
+      account_id TEXT NOT NULL,
+      capability_id TEXT NOT NULL,
+      in_flight INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (account_id, capability_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+  `);
+}

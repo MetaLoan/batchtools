@@ -1,0 +1,108 @@
+import { sqliteTable, text, integer, real, primaryKey, index } from 'drizzle-orm/sqlite-core';
+
+export const accounts = sqliteTable('accounts', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  apiKeyEncrypted: text('api_key_encrypted').notNull(),
+  endpoint: text('endpoint').notNull().default('https://dashscope-intl.aliyuncs.com'),
+  disableDataInspection: integer('disable_data_inspection').notNull().default(0),
+  policyJson: text('policy_json').notNull(),
+  createdAt: integer('created_at').notNull(),
+});
+
+export const uploads = sqliteTable(
+  'uploads',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    filename: text('filename').notNull(),
+    mime: text('mime').notNull(),
+    bytes: integer('bytes').notNull(),
+    storagePath: text('storage_path').notNull(),
+    signedKey: text('signed_key').notNull(),
+    publicUrl: text('public_url').notNull(),
+    width: integer('width'),
+    height: integer('height'),
+    durationSec: real('duration_sec'),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => ({
+    byAccount: index('uploads_account_idx').on(t.accountId),
+    byExpires: index('uploads_expires_idx').on(t.expiresAt),
+  })
+);
+
+export const jobs = sqliteTable(
+  'jobs',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    capabilityId: text('capability_id').notNull(),
+    modelVariant: text('model_variant').notNull(),
+    basePrompt: text('base_prompt'),
+    baseNegativePrompt: text('base_negative_prompt'),
+    baseMediaJson: text('base_media_json').notNull().default('[]'),
+    baseParametersJson: text('base_parameters_json').notNull().default('{}'),
+    batchMatrixJson: text('batch_matrix_json').notNull().default('{"axes":[]}'),
+    totalSubJobs: integer('total_sub_jobs').notNull().default(0),
+    status: text('status').notNull(),
+    priority: integer('priority').notNull().default(50),
+    createdAt: integer('created_at').notNull(),
+    finishedAt: integer('finished_at'),
+  },
+  (t) => ({
+    byAccountStatus: index('jobs_account_status_idx').on(t.accountId, t.status),
+    byCreatedAt: index('jobs_created_at_idx').on(t.createdAt),
+  })
+);
+
+export const subJobs = sqliteTable(
+  'sub_jobs',
+  {
+    id: text('id').primaryKey(),
+    jobId: text('job_id').notNull(),
+    accountId: text('account_id').notNull(),
+    capabilityId: text('capability_id').notNull(),
+    indexInJob: integer('index_in_job').notNull(),
+    axesJson: text('axes_json').notNull().default('{}'),
+    paramsSnapshotJson: text('params_snapshot_json').notNull(),
+    status: text('status').notNull(),
+    providerTaskId: text('provider_task_id'),
+    isSynthetic: integer('is_synthetic').notNull().default(0),
+    attempts: integer('attempts').notNull().default(0),
+    lastErrorJson: text('last_error_json'),
+    resultUrlsJson: text('result_urls_json'),
+    origPrompt: text('orig_prompt'),
+    actualPrompt: text('actual_prompt'),
+    pollNextAt: integer('poll_next_at'),
+    pollStateJson: text('poll_state_json'),
+    submittedAt: integer('submitted_at'),
+    finishedAt: integer('finished_at'),
+    originSubJobId: text('origin_sub_job_id'),
+    version: integer('version').notNull().default(1),
+  },
+  (t) => ({
+    byJob: index('sub_jobs_job_idx').on(t.jobId),
+    byAccountStatus: index('sub_jobs_account_status_idx').on(t.accountId, t.status),
+    byStatusPoll: index('sub_jobs_status_poll_idx').on(t.status, t.pollNextAt),
+  })
+);
+
+export const accountConcurrency = sqliteTable(
+  'account_concurrency',
+  {
+    accountId: text('account_id').notNull(),
+    capabilityId: text('capability_id').notNull(),
+    inFlight: integer('in_flight').notNull().default(0),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.accountId, t.capabilityId] }),
+  })
+);
+
+export const sessions = sqliteTable('sessions', {
+  id: text('id').primaryKey(),
+  createdAt: integer('created_at').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+});

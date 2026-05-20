@@ -1,0 +1,28 @@
+node_modules
+dist
+build
+*.log
+.DS_Store
+.env
+.env.local
+.env.*.local
+data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.vite
+coverage
+.turbo
+
+# Secret / personal notes (contains real API keys — do not push)
+env.yaml.md
+doc/env.yaml.md
+data-test/
+/tmp/
+
+# IDE / agent-local settings
+.claude/
+.vscode/
+.idea/
+

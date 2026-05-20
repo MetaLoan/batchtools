@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+**/dist
+**/build
+**/.vite
+data/
+*.db
+.env
+.env.local
+.git
+.github
+.idea
+.vscode
+.DS_Store
+*.log
+doc/
