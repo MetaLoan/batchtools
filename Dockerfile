@@ -42,8 +42,12 @@ COPY --from=builder /app/shared/dist ./shared/dist
 COPY --from=builder /app/server/dist ./server/dist
 COPY --from=builder /app/web/dist ./web/dist
 
-# Node modules (includes better-sqlite3 .node compiled binary)
+# Node modules — pnpm hoists deps under .pnpm/ and uses per-package
+# symlinked node_modules to expose them. Must copy both the root and the
+# per-package directories so Node's resolver walks them correctly.
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/server/node_modules ./server/node_modules
+COPY --from=builder /app/shared/node_modules ./shared/node_modules
 
 ENV NODE_ENV=production
 ENV PORT=8080
