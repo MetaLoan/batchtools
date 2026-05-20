@@ -25,33 +25,44 @@ export function loadAccountsFromConfig(log: {
   info: (m: string) => void;
   warn: (m: string) => void;
 }) {
-  const file = config.accountsConfigFile;
-  if (!fs.existsSync(file)) {
-    log.warn(
-      `[accounts] No accounts config found at ${file}. Create one based on accounts.yaml.example to enable DashScope calls.`
-    );
-    return;
-  }
+  let raw: string | null = null;
+  let source: string;
 
-  let raw: string;
-  try {
-    raw = fs.readFileSync(file, 'utf8');
-  } catch (e) {
-    log.warn(`[accounts] Failed to read ${file}: ${(e as Error).message}`);
-    return;
+  // Priority 1: env var (used by fly.io secret injection)
+  const envYaml = process.env.DASHSCOPE_ACCOUNTS_YAML;
+  if (envYaml && envYaml.trim().length > 0) {
+    raw = envYaml;
+    source = 'env DASHSCOPE_ACCOUNTS_YAML';
+  } else {
+    // Priority 2: YAML file on disk (local dev)
+    const file = config.accountsConfigFile;
+    if (!fs.existsSync(file)) {
+      log.warn(
+        `[accounts] No accounts config found at ${file} and DASHSCOPE_ACCOUNTS_YAML env var not set. ` +
+          'Create accounts.yaml or set the env var to enable DashScope calls.'
+      );
+      return;
+    }
+    try {
+      raw = fs.readFileSync(file, 'utf8');
+    } catch (e) {
+      log.warn(`[accounts] Failed to read ${file}: ${(e as Error).message}`);
+      return;
+    }
+    source = file;
   }
 
   let parsed: AccountsConfig;
   try {
     parsed = parseYaml(raw) ?? {};
   } catch (e) {
-    log.warn(`[accounts] Failed to parse YAML at ${file}: ${(e as Error).message}`);
+    log.warn(`[accounts] Failed to parse YAML from ${source}: ${(e as Error).message}`);
     return;
   }
 
   const entries = parsed.accounts ?? [];
   if (!Array.isArray(entries)) {
-    log.warn(`[accounts] Expected "accounts" to be an array in ${file}`);
+    log.warn(`[accounts] Expected "accounts" to be an array in ${source}`);
     return;
   }
 
@@ -111,5 +122,5 @@ export function loadAccountsFromConfig(log: {
     db.delete(accountsTable).where(notInArray(accountsTable.name, names)).run();
   }
 
-  log.info(`[accounts] Synced ${upserted} account(s) from ${file}`);
+  log.info(`[accounts] Synced ${upserted} account(s) from ${source}`);
 }

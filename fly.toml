@@ -1,5 +1,4 @@
-# fly.toml — replace `app` and run `fly launch --copy-config` if you want.
-app = "batch-video-promoter"
+app = "batchtools"
 primary_region = "sin"
 
 [build]
@@ -10,8 +9,7 @@ primary_region = "sin"
   PORT = "8080"
   HOST = "0.0.0.0"
   DATA_DIR = "/data"
-  # PUBLIC_HOST should match your app URL once known:
-  # PUBLIC_HOST = "https://batch-video-promoter.fly.dev"
+  # PUBLIC_HOST 由 secret 注入（避免硬编码到 git）
 
 [[mounts]]
   source = "data"
@@ -32,7 +30,12 @@ primary_region = "sin"
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 1024
+  memory_mb = 2048
 
-# Set secrets via:
-#   fly secrets set APP_PASSWORD=...  MASTER_KEY=...  PUBLIC_HOST=https://<your-app>.fly.dev
+# Secrets (一次性设置)：
+#   fly secrets set \
+#     INITIAL_ADMIN_USERNAME=admin \
+#     INITIAL_ADMIN_PASSWORD=... \
+#     MASTER_KEY=$(openssl rand -hex 32) \
+#     PUBLIC_HOST=https://batchtools.fly.dev \
+#     DASHSCOPE_ACCOUNTS_YAML="$(cat accounts.yaml)"

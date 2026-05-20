@@ -40,16 +40,55 @@ pnpm dev
 
 ## 部署到 fly.io
 
-```bash
-# 一次性
-fly launch --copy-config --no-deploy
-fly volumes create data --region sin --size 1
-fly secrets set APP_PASSWORD=your-strong-password
-fly secrets set MASTER_KEY=$(openssl rand -hex 32)
-fly secrets set PUBLIC_HOST=https://<your-app>.fly.dev
+**生产部署通过 GitHub Actions 自动化** — push 到 `main` 就远端构建并发布到 `https://batchtools.fly.dev`。
 
-# 部署
-fly deploy
+### 首次设置（已完成，参考用）
+
+```bash
+# 1. 创建 app
+fly apps create batchtools --org personal
+
+# 2. 创建 volume (region sin, 3GB)
+fly volumes create data --region sin --size 3 --app batchtools
+
+# 3. 设置所有 secrets（一次性注入）
+MASTER_KEY=$(openssl rand -hex 32)
+fly secrets set \
+  INITIAL_ADMIN_USERNAME=admin \
+  INITIAL_ADMIN_PASSWORD=<your-strong-password> \
+  MASTER_KEY="$MASTER_KEY" \
+  PUBLIC_HOST=https://batchtools.fly.dev \
+  SESSION_TTL_DAYS=30 \
+  DASHSCOPE_ACCOUNTS_YAML="$(cat accounts.yaml)" \
+  --app batchtools
+
+# 4. 生成只读 deploy token 并写入 GitHub Secrets
+fly tokens create deploy --app batchtools --expiry 8760h \
+  | gh secret set FLY_API_TOKEN --repo MetaLoan/batchtools
+```
+
+### 日常迭代
+
+只需 `git push origin main`。`.github/workflows/fly-deploy.yml` 自动跑：
+- `superfly/flyctl-actions/setup-flyctl`
+- `flyctl deploy --remote-only --ha=false`（Fly 云端 builder，本地不需要 Docker）
+- 显示最终 machine 状态
+
+仅当 `server/` `web/` `shared/` `Dockerfile` `fly.toml` `pnpm-lock.yaml` 等变动时触发；docs 修改不会触发。
+也可在 GitHub Actions 页面 → Deploy to Fly.io → Run workflow 手动触发。
+
+### 更换 DashScope Key / 新增账户
+
+改 `accounts.yaml` 后重设 secret 即可（不需要 push）：
+```bash
+fly secrets set DASHSCOPE_ACCOUNTS_YAML="$(cat accounts.yaml)" --app batchtools
+```
+fly 会自动滚动重启 machine，启动时 `bootstrap-accounts.ts` 读 env var 同步进 DB。
+
+### 直接命令行手动部署（应急）
+
+```bash
+fly deploy --app batchtools --remote-only --ha=false
 ```
 
 ## 项目结构
