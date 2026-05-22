@@ -1,6 +1,7 @@
 import type { IProvider, SubmitRequest, ProviderContext, ProviderHandle, PollResult } from '@bvp/shared';
 import { wan27VideoEditCapability } from './capabilities.js';
 import { submitAsyncVideo, pollAsyncVideo } from './wan-video-shared.js';
+import { formatParameters } from './base-client.js';
 
 export const wan27VideoEditProvider: IProvider = {
   capability: wan27VideoEditCapability,
@@ -28,7 +29,7 @@ export const wan27VideoEditProvider: IProvider = {
         media,
       },
       parameters: {
-        ...req.parameters,
+        ...formatParameters(req.parameters),
         ...(req.seed !== undefined ? { seed: req.seed } : {}),
       },
     };

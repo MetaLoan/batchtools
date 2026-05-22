@@ -261,3 +261,16 @@ function extractRequestId(obj: unknown): string | undefined {
   const o = obj as Record<string, unknown>;
   return typeof o.request_id === 'string' ? o.request_id : undefined;
 }
+
+export function formatParameters(params: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (k.startsWith('parameters.')) {
+      result[k.substring(11)] = v;
+    } else {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+

@@ -1,6 +1,7 @@
 import type { IProvider, SubmitRequest, ProviderContext, ProviderHandle, PollResult, MediaInput } from '@bvp/shared';
 import { wan27R2VCapability } from './capabilities.js';
 import { submitAsyncVideo, pollAsyncVideo } from './wan-video-shared.js';
+import { formatParameters } from './base-client.js';
 
 const KIND_TO_DASHSCOPE_TYPE: Partial<Record<MediaInput['kind'], string>> = {
   reference_image: 'reference_image',
@@ -40,7 +41,7 @@ export const wan27R2VProvider: IProvider = {
         media,
       },
       parameters: {
-        ...req.parameters,
+        ...formatParameters(req.parameters),
         ...(req.seed !== undefined ? { seed: req.seed } : {}),
       },
     };

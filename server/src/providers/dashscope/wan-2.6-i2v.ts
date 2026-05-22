@@ -1,6 +1,7 @@
 import type { IProvider, SubmitRequest, ProviderContext, ProviderHandle, PollResult } from '@bvp/shared';
 import { wan26I2VCapability } from './capabilities.js';
 import { submitAsyncVideo, pollAsyncVideo } from './wan-video-shared.js';
+import { formatParameters } from './base-client.js';
 
 export const wan26I2VProvider: IProvider = {
   capability: wan26I2VCapability,
@@ -18,7 +19,7 @@ export const wan26I2VProvider: IProvider = {
         ...(audio ? { audio_url: audio.url } : {}),
       },
       parameters: {
-        ...req.parameters,
+        ...formatParameters(req.parameters),
         ...(req.seed !== undefined ? { seed: req.seed } : {}),
       },
     };

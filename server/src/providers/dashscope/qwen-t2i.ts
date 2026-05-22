@@ -8,7 +8,7 @@ import type {
   ResultAsset,
 } from '@bvp/shared';
 import { qwenT2ICapability } from './capabilities.js';
-import { dashScopePost, extractTaskId, pollTask, extractResultAssets } from './base-client.js';
+import { dashScopePost, extractTaskId, pollTask, extractResultAssets, formatParameters } from './base-client.js';
 
 const SYNC_PATH = '/services/aigc/multimodal-generation/generation';
 const URL_TTL_HOURS = 24;
@@ -30,7 +30,7 @@ export const qwenT2IProvider: IProvider = {
       },
       parameters: {
         ...(req.negativePrompt ? { negative_prompt: req.negativePrompt } : {}),
-        ...req.parameters,
+        ...formatParameters(req.parameters),
         ...(req.seed !== undefined ? { seed: req.seed } : {}),
       },
     };
