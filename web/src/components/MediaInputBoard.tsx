@@ -24,6 +24,61 @@ function slotKindIcon(slot: MediaSlot) {
   return null;
 }
 
+function resizeImageIfNeeded(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.src = objectUrl;
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const minDimension = 240;
+      if (img.width >= minDimension && img.height >= minDimension) {
+        resolve(file);
+        return;
+      }
+      
+      const scale = Math.max(minDimension / img.width, minDimension / img.height);
+      const newWidth = Math.round(img.width * scale);
+      const newHeight = Math.round(img.height * scale);
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+      
+      ctx.drawImage(img, 0, 0, newWidth, newHeight);
+      
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const resizedFile = new File([blob], file.name, {
+            type: file.type || 'image/png',
+            lastModified: Date.now(),
+          });
+          resolve(resizedFile);
+        },
+        file.type || 'image/png',
+        0.95
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+  });
+}
+
 export default function MediaInputBoard({ capability, value, onChange }: Props) {
   const { message } = AntApp.useApp();
   const [busy, setBusy] = useState<string | null>(null);
@@ -34,7 +89,8 @@ export default function MediaInputBoard({ capability, value, onChange }: Props) 
   async function uploadFor(slot: MediaSlot, file: File) {
     setBusy(slot.kind);
     try {
-      const result = await api.uploadFile(file);
+      const targetFile = await resizeImageIfNeeded(file);
+      const result = await api.uploadFile(targetFile);
       const next: MediaInput = {
         kind: slot.kind,
         url: result.publicUrl,
