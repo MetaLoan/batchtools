@@ -93,6 +93,23 @@ export function getUploadStoragePath(userId: string, id: string): string | null 
   return path.join(UPLOAD_BASE(), r.storagePath);
 }
 
+export function getUploadDetails(
+  userId: string,
+  id: string
+): { mime: string; bytes: number; storagePath: string } | null {
+  const r = db
+    .select()
+    .from(uploads)
+    .where(and(eq(uploads.id, id), eq(uploads.userId, userId)))
+    .get();
+  if (!r) return null;
+  return {
+    mime: r.mime,
+    bytes: r.bytes,
+    storagePath: path.join(UPLOAD_BASE(), r.storagePath),
+  };
+}
+
 export function listUserUploads(userId: string, limit = 50) {
   return db
     .select()

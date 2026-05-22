@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../lib/auth.js';
 import {
-  getUploadStoragePath,
+  getUploadDetails,
   listUserUploads,
   saveUpload,
   verifySignedUpload,
@@ -51,11 +51,13 @@ export async function uploadRoutes(app: FastifyInstance) {
       reply.code(403).send({ error: 'Invalid signature' });
       return;
     }
-    const storagePath = getUploadStoragePath(userId, id);
-    if (!storagePath || !fs.existsSync(storagePath)) {
+        const upload = getUploadDetails(userId, id);
+    if (!upload || !fs.existsSync(upload.storagePath)) {
       reply.code(404).send({ error: 'Not found' });
       return;
     }
-    return reply.send(fs.createReadStream(storagePath));
+    reply.header('Content-Type', upload.mime);
+    reply.header('Content-Length', upload.bytes);
+    return reply.send(fs.createReadStream(upload.storagePath));
   });
 }
