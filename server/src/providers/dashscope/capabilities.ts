@@ -63,7 +63,7 @@ export const qwenT2ICapability: Capability = {
       key: 'parameters.prompt_extend',
       label: '智能改写',
       type: 'bool',
-      default: true,
+      default: false,
       sweepable: { allowed: true, strategies: ['list'] },
       help: '由模型自动优化 prompt',
     },
@@ -151,7 +151,7 @@ export const wan27T2VCapability: Capability = {
       key: 'parameters.prompt_extend',
       label: '智能改写',
       type: 'bool',
-      default: true,
+      default: false,
       sweepable: { allowed: true },
     },
     {
@@ -255,7 +255,7 @@ export const wan26I2VCapability: Capability = {
       key: 'parameters.prompt_extend',
       label: '智能改写',
       type: 'bool',
-      default: true,
+      default: false,
       sweepable: { allowed: true },
     },
     {
@@ -352,7 +352,7 @@ export const wan27I2VCapability: Capability = {
       key: 'parameters.prompt_extend',
       label: '智能改写',
       type: 'bool',
-      default: true,
+      default: false,
       sweepable: { allowed: true },
     },
     {
@@ -574,7 +574,7 @@ export const wan27R2VCapability: Capability = {
       key: 'parameters.prompt_extend',
       label: '智能改写',
       type: 'bool',
-      default: true,
+      default: false,
       sweepable: { allowed: true },
     },
     {
@@ -685,7 +685,7 @@ export const qwenImageEditCapability: Capability = {
       key: 'parameters.prompt_extend',
       label: '智能改写',
       type: 'bool',
-      default: true,
+      default: false,
       dependsOn: [
         { field: 'modelVariant', op: 'neq', value: 'qwen-image-edit' },
       ],
@@ -797,7 +797,7 @@ export const wan27VideoEditCapability: Capability = {
       key: 'parameters.prompt_extend',
       label: '智能改写',
       type: 'bool',
-      default: true,
+      default: false,
       sweepable: { allowed: true, strategies: ['list'] },
     },
     {
