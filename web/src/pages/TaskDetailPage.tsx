@@ -74,9 +74,20 @@ export default function TaskDetailPage() {
           <div className="mt-1 text-sm text-zinc-500">
             {job.capabilityId} · {job.modelVariant} · {formatRelative(job.createdAt)}
           </div>
-          {job.basePrompt && (
-            <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-sm text-zinc-300">
-              {job.basePrompt}
+          {(job.basePrompt || job.baseNegativePrompt) && (
+            <div className="mt-3 space-y-2">
+              {job.basePrompt && (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-sm text-zinc-300">
+                  <span className="text-[10px] text-zinc-500 block mb-0.5 font-mono">BASE PROMPT</span>
+                  {job.basePrompt}
+                </div>
+              )}
+              {job.baseNegativePrompt && (
+                <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-3 text-sm text-zinc-400">
+                  <span className="text-[10px] text-zinc-500 block mb-0.5 font-mono">BASE NEGATIVE PROMPT</span>
+                  {job.baseNegativePrompt}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -135,6 +146,13 @@ export default function TaskDetailPage() {
               <div className="mt-2 text-xs text-zinc-300 bg-zinc-900/40 border border-zinc-800/50 rounded p-2 line-clamp-3 hover:line-clamp-none transition-all cursor-help" title={s.paramsSnapshot.prompt}>
                 <span className="text-[10px] text-zinc-500 block mb-0.5 font-mono">PROMPT</span>
                 {s.paramsSnapshot.prompt}
+              </div>
+            )}
+
+            {s.paramsSnapshot?.negativePrompt && (
+              <div className="mt-2 text-xs text-zinc-400 bg-zinc-900/20 border border-zinc-800/30 rounded p-2 line-clamp-2 hover:line-clamp-none transition-all cursor-help" title={s.paramsSnapshot.negativePrompt}>
+                <span className="text-[10px] text-zinc-500 block mb-0.5 font-mono">NEGATIVE PROMPT</span>
+                {s.paramsSnapshot.negativePrompt}
               </div>
             )}
 

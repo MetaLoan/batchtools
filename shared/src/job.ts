@@ -6,6 +6,7 @@ export interface BatchAxisValue {
   label: string;
   paramOverrides?: Record<string, unknown>;
   promptOverride?: string;
+  negativePromptOverride?: string;
   mediaOverride?: MediaInput[];
 }
 
@@ -17,6 +18,7 @@ export interface BatchAxis {
 export interface BatchOverride {
   paramOverrides?: Record<string, unknown>;
   promptOverride?: string;
+  negativePromptOverride?: string;
 }
 
 export interface BatchMatrix {

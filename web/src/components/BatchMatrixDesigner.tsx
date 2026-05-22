@@ -10,6 +10,7 @@ interface Props {
   value: BatchMatrix;
   onChange: (next: BatchMatrix) => void;
   basePrompt?: string;
+  baseNegativePrompt?: string;
 }
 
 function sweepableFields(cap: Capability): ParamField[] {
@@ -37,7 +38,7 @@ interface Preset {
   buildAxis: () => BatchAxis;
 }
 
-function buildPresets(cap: Capability, modelVariant: string, basePrompt?: string): Preset[] {
+function buildPresets(cap: Capability, modelVariant: string, basePrompt?: string, baseNegativePrompt?: string): Preset[] {
   const seedField = findField(cap, 'parameters.seed');
   const resolutionField =
     findField(cap, 'parameters.resolution') ??
@@ -119,8 +120,16 @@ function buildPresets(cap: Capability, modelVariant: string, basePrompt?: string
     buildAxis: () => ({
       name: '_prompt',
       values: [
-        { label: 'Prompt 1', promptOverride: basePrompt ?? '' },
-        { label: 'Prompt 2', promptOverride: '' },
+        {
+          label: 'Prompt 1',
+          promptOverride: basePrompt ?? '',
+          ...(cap.promptSpec.supportsNegative ? { negativePromptOverride: baseNegativePrompt ?? '' } : {}),
+        },
+        {
+          label: 'Prompt 2',
+          promptOverride: '',
+          ...(cap.promptSpec.supportsNegative ? { negativePromptOverride: '' } : {}),
+        },
       ],
     }),
   });
@@ -137,7 +146,13 @@ function axisDisplayName(axis: BatchAxis, cap: Capability): string {
 function valueDisplay(v: BatchAxisValue): string {
   if (v.promptOverride !== undefined) {
     const t = v.promptOverride.trim();
-    return t ? (t.length > 30 ? t.slice(0, 30) + '…' : t) : '(空)';
+    const promptStr = t ? (t.length > 25 ? t.slice(0, 25) + '…' : t) : '(空)';
+    if (v.negativePromptOverride !== undefined) {
+      const nt = v.negativePromptOverride.trim();
+      const negStr = nt ? (nt.length > 15 ? nt.slice(0, 15) + '…' : nt) : '';
+      return negStr ? `${promptStr} (反向: ${negStr})` : promptStr;
+    }
+    return promptStr;
   }
   if (v.paramOverrides) {
     const entry = Object.entries(v.paramOverrides)[0];
@@ -154,11 +169,11 @@ function cartesian<T>(arrays: T[][]): T[][] {
   );
 }
 
-export default function BatchMatrixDesigner({ capability, modelVariant, value, onChange, basePrompt }: Props) {
+export default function BatchMatrixDesigner({ capability, modelVariant, value, onChange, basePrompt, baseNegativePrompt }: Props) {
   const fields = sweepableFields(capability);
   const presets = useMemo(
-    () => buildPresets(capability, modelVariant, basePrompt),
-    [capability, modelVariant, basePrompt]
+    () => buildPresets(capability, modelVariant, basePrompt, baseNegativePrompt),
+    [capability, modelVariant, basePrompt, baseNegativePrompt]
   );
   const [showCustom, setShowCustom] = useState(false);
 
@@ -252,7 +267,11 @@ export default function BatchMatrixDesigner({ capability, modelVariant, value, o
     const field = findField(capability, axis.name);
     let next: BatchAxisValue;
     if (axis.name === '_prompt') {
-      next = { label: `Prompt ${axis.values.length + 1}`, promptOverride: '' };
+      next = {
+        label: `Prompt ${axis.values.length + 1}`,
+        promptOverride: '',
+        ...(capability.promptSpec.supportsNegative ? { negativePromptOverride: '' } : {}),
+      };
     } else if (field?.key === 'parameters.seed') {
       const s = randomSeed();
       next = { label: `seed ${s}`, paramOverrides: { [field.key]: s } };
@@ -395,17 +414,32 @@ export default function BatchMatrixDesigner({ capability, modelVariant, value, o
                         <span className="font-mono text-[10px] text-zinc-600">#{vIdx + 1}</span>
                         <div className="flex-1">
                           {isPrompt ? (
-                            <Input.TextArea
-                              size="small"
-                              rows={2}
-                              value={v.promptOverride}
-                              onChange={(e) => {
-                                const next = [...axis.values];
-                                next[vIdx] = { ...v, promptOverride: e.target.value, label: `Prompt ${vIdx + 1}` };
-                                updateAxisValues(idx, next);
-                              }}
-                              placeholder="另一条 prompt…"
-                            />
+                            <div className="space-y-1.5">
+                              <Input.TextArea
+                                size="small"
+                                rows={2}
+                                value={v.promptOverride}
+                                onChange={(e) => {
+                                  const next = [...axis.values];
+                                  next[vIdx] = { ...v, promptOverride: e.target.value, label: `Prompt ${vIdx + 1}` };
+                                  updateAxisValues(idx, next);
+                                }}
+                                placeholder="另一条 prompt…"
+                              />
+                              {capability.promptSpec.supportsNegative && (
+                                <Input.TextArea
+                                  size="small"
+                                  rows={1}
+                                  value={v.negativePromptOverride}
+                                  onChange={(e) => {
+                                    const next = [...axis.values];
+                                    next[vIdx] = { ...v, negativePromptOverride: e.target.value };
+                                    updateAxisValues(idx, next);
+                                  }}
+                                  placeholder="对应负面提示词（可选）…"
+                                />
+                              )}
+                            </div>
                           ) : field?.enum ? (
                             <Select
                               size="small"

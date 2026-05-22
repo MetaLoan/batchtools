@@ -221,6 +221,7 @@ export default function CapabilityPage() {
                 value={matrix}
                 onChange={(next) => setCapabilityForm(capabilityId!, { matrix: next })}
                 basePrompt={prompt}
+                baseNegativePrompt={negativePrompt}
               />
             </Section>
 

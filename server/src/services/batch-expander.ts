@@ -43,6 +43,7 @@ export function expandMatrix(input: ExpandInput): SubJobDraft[] {
 
   return valueGrids.map((coord, idx) => {
     let prompt = input.basePrompt;
+    let negativePrompt = input.baseNegativePrompt;
     let media: MediaInput[] = [...input.baseMedia];
     const params: Record<string, unknown> = { ...input.baseParameters };
     let modelVariant = input.modelVariant;
@@ -61,6 +62,7 @@ export function expandMatrix(input: ExpandInput): SubJobDraft[] {
         }
       }
       if (val.promptOverride !== undefined) prompt = val.promptOverride;
+      if (val.negativePromptOverride !== undefined) negativePrompt = val.negativePromptOverride;
       if (val.mediaOverride) media = val.mediaOverride;
     });
 
@@ -72,12 +74,13 @@ export function expandMatrix(input: ExpandInput): SubJobDraft[] {
       }
     }
     if (override?.promptOverride !== undefined) prompt = override.promptOverride;
+    if (override?.negativePromptOverride !== undefined) negativePrompt = override.negativePromptOverride;
 
     return {
       indexInJob: idx,
       axes: axesDict,
       prompt,
-      negativePrompt: input.baseNegativePrompt,
+      negativePrompt,
       media,
       parameters: params,
       modelVariant,
