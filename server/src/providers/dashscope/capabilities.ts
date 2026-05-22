@@ -597,7 +597,7 @@ export const wan27R2VCapability: Capability = {
 export const qwenImageEditCapability: Capability = {
   id: 'qwen.image_edit',
   displayName: 'Qwen 图片编辑',
-  shortName: '图片编辑',
+  shortName: '图片编辑 (Qwen)',
   category: 'i2i',
   providerName: 'dashscope',
   sync: true,
@@ -907,7 +907,7 @@ export const wan27ImageCapability: Capability = {
 export const wan27ImageEditCapability: Capability = {
   id: 'wan2.7.image_edit',
   displayName: 'Wan 2.7 图像编辑',
-  shortName: '图像编辑',
+  shortName: '图像编辑 (Wan)',
   category: 'i2i',
   providerName: 'dashscope',
   sync: true,
