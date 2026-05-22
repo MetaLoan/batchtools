@@ -6,7 +6,9 @@ export type CapabilityId =
   | 'wan2.7.i2v'
   | 'wan2.6.r2v'
   | 'wan2.7.r2v'
-  | 'wan2.7.video_edit';
+  | 'wan2.7.video_edit'
+  | 'wan2.7.image'
+  | 'wan2.7.image_edit';
 
 export type CapabilityCategory = 't2i' | 'i2i' | 't2v' | 'i2v' | 'r2v' | 'v2v';
 

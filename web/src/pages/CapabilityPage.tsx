@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { App as AntApp, Button, Input, Select, Collapse } from 'antd';
-import { Play, BookOpen, Layers, FileText } from 'lucide-react';
+import { App as AntApp, Button, Input, Select, Collapse, Popconfirm } from 'antd';
+import { Play, BookOpen, Layers, FileText, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCapabilities } from '../App';
 import { useAppStore } from '../lib/store';
 import { api } from '../lib/api';
@@ -18,31 +19,67 @@ export default function CapabilityPage() {
   const navigate = useNavigate();
   const { message, notification } = AntApp.useApp();
   const accountId = useAppStore((s) => s.currentAccountId);
+  const qc = useQueryClient();
+
+  const capabilityForms = useAppStore((s) => s.capabilityForms);
+  const setCapabilityForm = useAppStore((s) => s.setCapabilityForm);
 
   const defaultModel = cap?.models.find((m) => m.default)?.value ?? cap?.models[0]?.value ?? '';
-  const [modelVariant, setModelVariant] = useState(defaultModel);
-  const [prompt, setPrompt] = useState('');
-  const [negativePrompt, setNegativePrompt] = useState('');
-  const [media, setMedia] = useState<MediaInput[]>([]);
-  const [parameters, setParameters] = useState<Record<string, unknown>>({});
-  const [matrix, setMatrix] = useState<BatchMatrix>({ axes: [] });
+  const formData = (capabilityId && capabilityForms[capabilityId]) || {};
+
+  const modelVariant = formData.modelVariant ?? defaultModel;
+  const prompt = formData.prompt ?? '';
+  const negativePrompt = formData.negativePrompt ?? '';
+  const media = (formData.media as MediaInput[]) ?? [];
+  const parameters = (formData.parameters as Record<string, unknown>) ?? {};
+  const matrix = (formData.matrix as BatchMatrix) ?? { axes: [] };
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!cap) return;
-    setModelVariant(cap.models.find((m) => m.default)?.value ?? cap.models[0]?.value ?? '');
-    setPrompt('');
-    setNegativePrompt('');
-    setMedia([]);
-    setParameters(
-      Object.fromEntries(
-        cap.parameterSpec
-          .filter((f) => f.default !== undefined)
-          .map((f) => [f.key, f.default])
-      )
-    );
-    setMatrix({ axes: [] });
-  }, [cap?.id]);
+    if (!capabilityId || !cap) return;
+    const existing = useAppStore.getState().capabilityForms[capabilityId];
+    if (!existing) {
+      setCapabilityForm(capabilityId, {
+        modelVariant: cap.models.find((m) => m.default)?.value ?? cap.models[0]?.value ?? '',
+        prompt: '',
+        negativePrompt: '',
+        media: [],
+        parameters: Object.fromEntries(
+          cap.parameterSpec
+            .filter((f) => f.default !== undefined)
+            .map((f) => [f.key, f.default])
+        ),
+        matrix: { axes: [] }
+      });
+    } else {
+      const updates: any = {};
+      if (existing.modelVariant === undefined) {
+        updates.modelVariant = cap.models.find((m) => m.default)?.value ?? cap.models[0]?.value ?? '';
+      }
+      if (existing.prompt === undefined) {
+        updates.prompt = '';
+      }
+      if (existing.negativePrompt === undefined) {
+        updates.negativePrompt = '';
+      }
+      if (existing.media === undefined) {
+        updates.media = [];
+      }
+      if (existing.parameters === undefined) {
+        updates.parameters = Object.fromEntries(
+          cap.parameterSpec
+            .filter((f) => f.default !== undefined)
+            .map((f) => [f.key, f.default])
+        );
+      }
+      if (existing.matrix === undefined) {
+        updates.matrix = { axes: [] };
+      }
+      if (Object.keys(updates).length > 0) {
+        setCapabilityForm(capabilityId, updates);
+      }
+    }
+  }, [capabilityId, cap, setCapabilityForm]);
 
   const total = useMemo(() => {
     if (matrix.axes.length === 0) return 1;
@@ -51,6 +88,23 @@ export default function CapabilityPage() {
 
   if (!cap) {
     return <div className="p-6 text-zinc-500">未找到该能力</div>;
+  }
+
+  function resetForm() {
+    if (!capabilityId || !cap) return;
+    setCapabilityForm(capabilityId, {
+      modelVariant: cap.models.find((m) => m.default)?.value ?? cap.models[0]?.value ?? '',
+      prompt: '',
+      negativePrompt: '',
+      media: [],
+      parameters: Object.fromEntries(
+        cap.parameterSpec
+          .filter((f) => f.default !== undefined)
+          .map((f) => [f.key, f.default])
+      ),
+      matrix: { axes: [] }
+    });
+    message.success('已清空当前工作台所有配置参数');
   }
 
   async function submit() {
@@ -78,7 +132,7 @@ export default function CapabilityPage() {
         message: '已提交',
         description: `Job ${result.jobId.slice(0, 8)} — ${result.total} 个子任务`,
       });
-      navigate(`/tasks/${result.jobId}`);
+      qc.invalidateQueries({ queryKey: ['jobs'] });
     } catch (e) {
       message.error((e as Error).message);
     } finally {
@@ -99,7 +153,7 @@ export default function CapabilityPage() {
             <Select
               size="middle"
               value={modelVariant}
-              onChange={setModelVariant}
+              onChange={(val) => setCapabilityForm(capabilityId!, { modelVariant: val })}
               options={cap.models.map((m) => ({ value: m.value, label: m.label }))}
               className="min-w-[200px]"
             />
@@ -111,7 +165,7 @@ export default function CapabilityPage() {
             <Section title="提示词" icon={<FileText size={16} />}>
               <Input.TextArea
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => setCapabilityForm(capabilityId!, { prompt: e.target.value })}
                 placeholder={
                   cap.promptSpec.syntaxHelp ?? '描述你希望生成的内容…'
                 }
@@ -123,7 +177,7 @@ export default function CapabilityPage() {
                 <div className="mt-3">
                   <Input.TextArea
                     value={negativePrompt}
-                    onChange={(e) => setNegativePrompt(e.target.value)}
+                    onChange={(e) => setCapabilityForm(capabilityId!, { negativePrompt: e.target.value })}
                     placeholder="反向提示词 (negative prompt)"
                     rows={2}
                     maxLength={500}
@@ -137,7 +191,11 @@ export default function CapabilityPage() {
 
             {cap.mediaSpec.mode !== 'none' && (
               <Section title="媒体输入">
-                <MediaInputBoard capability={cap} value={media} onChange={setMedia} />
+                <MediaInputBoard
+                  capability={cap}
+                  value={media}
+                  onChange={(next) => setCapabilityForm(capabilityId!, { media: next })}
+                />
               </Section>
             )}
 
@@ -146,7 +204,7 @@ export default function CapabilityPage() {
                 capability={cap}
                 modelVariant={modelVariant}
                 values={parameters}
-                onChange={setParameters}
+                onChange={(next) => setCapabilityForm(capabilityId!, { parameters: next })}
               />
             </Section>
           </div>
@@ -161,7 +219,7 @@ export default function CapabilityPage() {
                 capability={cap}
                 modelVariant={modelVariant}
                 value={matrix}
-                onChange={setMatrix}
+                onChange={(next) => setCapabilityForm(capabilityId!, { matrix: next })}
                 basePrompt={prompt}
               />
             </Section>
@@ -188,16 +246,35 @@ export default function CapabilityPage() {
             <div className="text-sm text-zinc-400">
               将生成 <span className="font-mono text-base text-brand-300">{total}</span> 个子任务
             </div>
-            <Button
-              type="primary"
-              size="large"
-              icon={<Play size={16} />}
-              loading={submitting}
-              onClick={submit}
-              disabled={total > cap.batch.platformMaxFanout || !accountId}
-            >
-              提交
-            </Button>
+            <div className="flex items-center gap-3">
+              <Popconfirm
+                title="确定要清空当前工作台的所有配置吗？"
+                description="清空后提示词和媒体文件需要重新配置。"
+                onConfirm={resetForm}
+                okText="确定清空"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+              >
+                <Button
+                  size="large"
+                  icon={<RotateCcw size={15} />}
+                  className="text-zinc-400 hover:text-red-400 hover:border-red-400/30 flex items-center justify-center"
+                >
+                  清空
+                </Button>
+              </Popconfirm>
+              
+              <Button
+                type="primary"
+                size="large"
+                icon={<Play size={16} />}
+                loading={submitting}
+                onClick={submit}
+                disabled={total > cap.batch.platformMaxFanout || !accountId}
+              >
+                提交
+              </Button>
+            </div>
           </div>
         </div>
       </motion.div>

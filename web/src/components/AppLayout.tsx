@@ -18,6 +18,7 @@ import {
 import clsx from 'clsx';
 import { useCapabilities } from '../App';
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useAppStore } from '../lib/store';
 import AccountSwitcher from './AccountSwitcher';
@@ -37,6 +38,18 @@ export default function AppLayout() {
   const { data: capabilities = [] } = useCapabilities();
   const [isMobile, setIsMobile] = useState(false);
 
+  const acknowledgedFinishedJobIds = useAppStore((s) => s.acknowledgedFinishedJobIds) || [];
+
+  const { data: jobs = [] } = useQuery({
+    queryKey: ['jobs'],
+    queryFn: () => api.listJobs(200).then((r) => r.jobs),
+    refetchInterval: 8000,
+  });
+
+  const generatingCount = jobs.filter((j) => j.status === 'RUNNING' || j.status === 'QUEUED').length;
+  const finishedJobs = jobs.filter((j) => j.status !== 'RUNNING' && j.status !== 'QUEUED');
+  const newFinishedCount = finishedJobs.filter((j) => !acknowledgedFinishedJobIds.includes(j.id)).length;
+
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
     const handler = () => setIsMobile(mq.matches);
@@ -46,8 +59,20 @@ export default function AppLayout() {
   }, []);
 
   if (isMobile) {
-    return <MobileLayout />;
+    return <MobileLayout generatingCount={generatingCount} newFinishedCount={newFinishedCount} />;
   }
+
+  const generatingBadge = generatingCount > 0 ? (
+    <span className="flex h-5 items-center justify-center rounded-full bg-brand-500/20 px-1.5 text-xs font-medium text-brand-300 ring-1 ring-inset ring-brand-500/30 animate-pulse">
+      {generatingCount}
+    </span>
+  ) : null;
+
+  const newFinishedBadge = newFinishedCount > 0 ? (
+    <span className="flex h-5 items-center justify-center rounded-full bg-emerald-500/20 px-1.5 text-xs font-medium text-emerald-400 ring-1 ring-inset ring-emerald-500/30">
+      +{newFinishedCount}
+    </span>
+  ) : null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950 text-zinc-100">
@@ -91,12 +116,14 @@ export default function AppLayout() {
             label="队列"
             active={location.pathname === '/queue'}
             onClick={() => navigate('/queue')}
+            badge={generatingBadge}
           />
           <NavItem
             icon={<History size={16} />}
             label="任务历史"
             active={location.pathname.startsWith('/tasks')}
             onClick={() => navigate('/tasks')}
+            badge={newFinishedBadge}
           />
           <NavItem
             icon={<ImageIcon size={16} />}
@@ -132,9 +159,27 @@ export default function AppLayout() {
   );
 }
 
-function MobileLayout() {
+function MobileLayout({
+  generatingCount,
+  newFinishedCount,
+}: {
+  generatingCount: number;
+  newFinishedCount: number;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const generatingMobileBadge = generatingCount > 0 ? (
+    <span className="absolute right-4 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[9px] font-bold text-white animate-pulse">
+      {generatingCount}
+    </span>
+  ) : null;
+
+  const newFinishedMobileBadge = newFinishedCount > 0 ? (
+    <span className="absolute right-4 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-white">
+      {newFinishedCount}
+    </span>
+  ) : null;
 
   return (
     <div className="flex h-screen flex-col bg-zinc-950 text-zinc-100">
@@ -162,12 +207,14 @@ function MobileLayout() {
           label="队列"
           active={location.pathname === '/queue'}
           onClick={() => navigate('/queue')}
+          badge={generatingMobileBadge}
         />
         <MobileTab
           icon={<History size={20} />}
           label="任务"
           active={location.pathname.startsWith('/tasks')}
           onClick={() => navigate('/tasks')}
+          badge={newFinishedMobileBadge}
         />
         <MobileTab
           icon={<ImageIcon size={20} />}
@@ -191,24 +238,29 @@ function NavItem({
   label,
   active,
   onClick,
+  badge,
 }: {
   icon?: JSX.Element;
   label: string;
   active?: boolean;
   onClick: () => void;
+  badge?: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
       className={clsx(
-        'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+        'flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors',
         active
           ? 'bg-brand-500/15 text-brand-200'
           : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100'
       )}
     >
-      <span className="flex h-5 w-5 items-center justify-center">{icon}</span>
-      <span className="truncate">{label}</span>
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span className="flex h-5 w-5 items-center justify-center">{icon}</span>
+        <span className="truncate">{label}</span>
+      </div>
+      {badge}
     </button>
   );
 }
@@ -218,22 +270,25 @@ function MobileTab({
   label,
   active,
   onClick,
+  badge,
 }: {
   icon: JSX.Element;
   label: string;
   active: boolean;
   onClick: () => void;
+  badge?: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
       className={clsx(
-        'flex h-full min-w-[44px] flex-1 flex-col items-center justify-center gap-1 text-[11px]',
+        'relative flex h-full min-w-[44px] flex-1 flex-col items-center justify-center gap-1 text-[11px]',
         active ? 'text-brand-400' : 'text-zinc-500'
       )}
     >
       {icon}
       <span>{label}</span>
+      {badge}
     </button>
   );
 }

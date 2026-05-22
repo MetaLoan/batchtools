@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, App as AntApp, Tooltip } from 'antd';
+import { Upload, App as AntApp, Tooltip, Input, Button } from 'antd';
 import { Plus, X, Image as ImageIcon, Video as VideoIcon, Music } from 'lucide-react';
 import type { Capability, MediaInput, MediaSlot } from '@bvp/shared';
 import { api } from '../lib/api';
@@ -82,6 +82,7 @@ function resizeImageIfNeeded(file: File): Promise<File> {
 export default function MediaInputBoard({ capability, value, onChange }: Props) {
   const { message } = AntApp.useApp();
   const [busy, setBusy] = useState<string | null>(null);
+  const [urlInputs, setUrlInputs] = useState<Record<string, string>>({});
 
   if (capability.mediaSpec.mode === 'none') return null;
   const slots = capability.mediaSpec.slots;
@@ -109,6 +110,80 @@ export default function MediaInputBoard({ capability, value, onChange }: Props) 
       setBusy(null);
     }
     return false;
+  }
+
+  function addUrl(slot: MediaSlot, url: string) {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      message.error('请输入有效的 HTTP/HTTPS 链接');
+      return;
+    }
+
+    const existing = value.filter((m) => m.kind === slot.kind);
+    if (existing.length + 1 > slot.max) {
+      message.warning(`${slot.label ?? slot.kind} 最多 ${slot.max} 个`);
+      return;
+    }
+
+    // 提取 localId
+    const match = trimmed.match(/\/uploads\/([^/]+)\/([^?#]+)/);
+    let localId: string | undefined;
+    if (match) {
+      const filename = match[2];
+      localId = filename.split('.')[0];
+    }
+
+    // 根据后缀或 slot.accept 猜测 mime
+    let filename = '';
+    try {
+      const urlObj = new URL(trimmed);
+      filename = urlObj.pathname.substring(urlObj.pathname.lastIndexOf('/') + 1);
+    } catch (e) {
+      const parts = trimmed.split('?')[0].split('/');
+      filename = parts[parts.length - 1];
+    }
+
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    let mime = '';
+
+    const imageExts = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'];
+    const videoExts = ['mp4', 'webm', 'mov', 'qt', 'ogg'];
+    const audioExts = ['mp3', 'wav', 'ogg', 'aac', 'flac'];
+
+    if (imageExts.includes(ext)) {
+      mime = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+    } else if (videoExts.includes(ext)) {
+      mime = `video/${ext === 'mov' || ext === 'qt' ? 'quicktime' : ext}`;
+    } else if (audioExts.includes(ext)) {
+      mime = `audio/${ext === 'mp3' ? 'mpeg' : ext}`;
+    } else {
+      if (slot.accept.includes('image')) {
+        mime = 'image/png';
+      } else if (slot.accept.includes('video')) {
+        mime = 'video/mp4';
+      } else if (slot.accept.includes('audio')) {
+        mime = 'audio/mpeg';
+      } else {
+        mime = 'application/octet-stream';
+      }
+    }
+
+    const nextItem: MediaInput = {
+      kind: slot.kind,
+      url: trimmed,
+      localId,
+      meta: {
+        mime,
+      },
+    };
+
+    onChange([...value, nextItem]);
+    setUrlInputs({
+      ...urlInputs,
+      [slot.kind]: '',
+    });
   }
 
   function removeAt(idx: number) {
@@ -165,6 +240,25 @@ export default function MediaInputBoard({ capability, value, onChange }: Props) 
                 </Upload>
               )}
             </div>
+            {items.length < slot.max && (
+              <div className="mt-2 flex gap-1.5">
+                <Input
+                  size="small"
+                  placeholder="或粘贴素材 URL 地址..."
+                  value={urlInputs[slot.kind] ?? ''}
+                  onChange={(e) => setUrlInputs({ ...urlInputs, [slot.kind]: e.target.value })}
+                  onPressEnter={() => addUrl(slot, urlInputs[slot.kind] ?? '')}
+                  className="flex-1 !bg-zinc-900/60 !border-zinc-800 hover:!border-zinc-700 focus:!border-brand-500 focus:!shadow-none text-xs text-zinc-300 placeholder-zinc-600"
+                />
+                <Button
+                  size="small"
+                  onClick={() => addUrl(slot, urlInputs[slot.kind] ?? '')}
+                  className="!bg-zinc-800 !border-zinc-700 hover:!border-brand-500 hover:!text-brand-300 text-xs text-zinc-300"
+                >
+                  添加
+                </Button>
+              </div>
+            )}
           </div>
         );
       })}

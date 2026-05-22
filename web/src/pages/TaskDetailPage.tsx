@@ -131,6 +131,13 @@ export default function TaskDetailPage() {
               </div>
             )}
 
+            {s.paramsSnapshot?.prompt && (
+              <div className="mt-2 text-xs text-zinc-300 bg-zinc-900/40 border border-zinc-800/50 rounded p-2 line-clamp-3 hover:line-clamp-none transition-all cursor-help" title={s.paramsSnapshot.prompt}>
+                <span className="text-[10px] text-zinc-500 block mb-0.5 font-mono">PROMPT</span>
+                {s.paramsSnapshot.prompt}
+              </div>
+            )}
+
             {s.errorMessage && (() => {
               const exp = explainProviderError(s.errorCode, s.errorMessage);
               return (

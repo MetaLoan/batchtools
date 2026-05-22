@@ -13,9 +13,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/v1': 'http://localhost:3000',
-      '/uploads': 'http://localhost:3000',
-      '/healthz': 'http://localhost:3000',
+      '/v1': 'http://localhost:3030',
+      '/uploads': 'http://localhost:3030',
+      '/healthz': 'http://localhost:3030',
     },
   },
   build: {

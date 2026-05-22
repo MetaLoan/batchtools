@@ -4,9 +4,12 @@ import { Copy, Clock } from 'lucide-react';
 import { api } from '../lib/api';
 import { formatBytes, formatCountdown, formatRelative } from '../lib/format';
 import { useCapabilities } from '../App';
+import { useAppStore } from '../lib/store';
 
 export default function AssetsPage() {
   const { message } = AntApp.useApp();
+  const assetsActiveTab = useAppStore((s) => s.assetsActiveTab);
+  const setAssetsActiveTab = useAppStore((s) => s.setAssetsActiveTab);
 
   const { data: uploads = [] } = useQuery({
     queryKey: ['uploads'],
@@ -29,6 +32,8 @@ export default function AssetsPage() {
       <p className="mb-4 text-sm text-zinc-500">临时图床上传与产物输出聚合</p>
 
       <Tabs
+        activeKey={assetsActiveTab}
+        onChange={setAssetsActiveTab}
         items={[
           {
             key: 'uploads',

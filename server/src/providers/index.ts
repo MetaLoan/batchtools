@@ -7,6 +7,7 @@ import { wan27I2VProvider } from './dashscope/wan-2.7-i2v.js';
 import { wan26R2VProvider } from './dashscope/wan-2.6-r2v.js';
 import { wan27R2VProvider } from './dashscope/wan-2.7-r2v.js';
 import { wan27VideoEditProvider } from './dashscope/wan-2.7-video-edit.js';
+import { wan27ImageProvider, wan27ImageEditProvider } from './dashscope/wan-2.7-image.js';
 
 export function registerAllProviders(): void {
   registerProvider(qwenT2IProvider);
@@ -17,6 +18,8 @@ export function registerAllProviders(): void {
   registerProvider(wan26R2VProvider);
   registerProvider(wan27R2VProvider);
   registerProvider(wan27VideoEditProvider);
+  registerProvider(wan27ImageProvider);
+  registerProvider(wan27ImageEditProvider);
 }
 
 export { getProvider, listCapabilities, hasCapability } from './registry.js';

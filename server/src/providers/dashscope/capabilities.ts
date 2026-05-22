@@ -817,6 +817,174 @@ export const wan27VideoEditCapability: Capability = {
   ],
 };
 
+export const wan27ImageCapability: Capability = {
+  id: 'wan2.7.image',
+  displayName: 'Wan 2.7 图像生成',
+  shortName: '图像生成',
+  category: 't2i',
+  providerName: 'dashscope',
+  sync: true,
+  models: [
+    { value: 'wan2.7-image-pro', label: 'Wan 2.7 Image Pro', default: true, description: '专业版，支持4K高清输出' },
+    { value: 'wan2.7-image', label: 'Wan 2.7 Image', description: '生成速度更快' },
+  ],
+  promptSpec: { required: true, maxChars: 5000, supportsNegative: false },
+  mediaSpec: {
+    mode: 'unified_media',
+    slots: [
+      {
+        kind: 'reference_image',
+        required: false,
+        min: 0,
+        max: 9,
+        accept: ['image'],
+        label: '参考图 (可选)',
+        hint: '可选 0-9 张参考图。当输入多张图像时，按照数组顺序定义图像顺序',
+      },
+    ],
+  },
+  batch: { nativeMax: 4, platformMaxFanout: 500 },
+  pollIntervalSec: { initial: 5, max: 20 },
+  docPath: 'doc/wan2.7-img-edit.md',
+  description: '阿里云万相2.7图像生成模型，支持文生图、组图生成及多图参考生成，最高4K分辨率。',
+  parameterSpec: [
+    {
+      key: 'parameters.size',
+      label: '分辨率',
+      type: 'enum',
+      default: '2K',
+      enum: [
+        { value: '1K', label: '1K (1024×1024)' },
+        { value: '2K', label: '2K (2048×2048)' },
+        { value: '4K', label: '4K (4096×4096)', modelScope: ['wan2.7-image-pro'] },
+      ],
+      sweepable: { allowed: true, strategies: ['list'], costMultiplier: 'linear' },
+      help: '4K 仅在 wan2.7-image-pro 且无参考图、未开启组图时可用',
+    },
+    {
+      key: 'parameters.enable_sequential',
+      label: '组图生成',
+      type: 'bool',
+      default: false,
+      sweepable: { allowed: true, strategies: ['list'] },
+      help: '启用组图输出模式',
+    },
+    {
+      key: 'parameters.n',
+      label: '生成数量',
+      type: 'int',
+      default: 1,
+      range: [1, 12],
+      step: 1,
+      sweepable: { allowed: false },
+      help: '单图模式下 1-4（默认 1），组图模式下 1-12（默认 12）',
+    },
+    {
+      key: 'parameters.thinking_mode',
+      label: '思考模式',
+      type: 'bool',
+      default: false,
+      sweepable: { allowed: true, strategies: ['list'] },
+      help: '仅在关闭组图模式且无图片输入时生效，提升质量但增加耗时',
+    },
+    {
+      key: 'parameters.watermark',
+      label: '添加水印',
+      type: 'bool',
+      default: false,
+      sweepable: { allowed: false },
+    },
+    {
+      key: 'parameters.seed',
+      label: 'Seed',
+      type: 'int',
+      range: [0, 2147483647],
+      sweepable: { allowed: true, strategies: ['list', 'randomSeeds'] },
+    },
+  ],
+};
+
+export const wan27ImageEditCapability: Capability = {
+  id: 'wan2.7.image_edit',
+  displayName: 'Wan 2.7 图像编辑',
+  shortName: '图像编辑',
+  category: 'i2i',
+  providerName: 'dashscope',
+  sync: true,
+  models: [
+    { value: 'wan2.7-image-pro', label: 'Wan 2.7 Image Pro', default: true, description: '专业版，图像编辑支持最高2K分辨率' },
+    { value: 'wan2.7-image', label: 'Wan 2.7 Image', description: '生成速度更快' },
+  ],
+  promptSpec: {
+    required: true,
+    maxChars: 5000,
+    supportsNegative: false,
+    syntaxHelp: '描述修改意图，如「把图2的涂鸦喷绘在图1的汽车上」',
+  },
+  mediaSpec: {
+    mode: 'unified_media',
+    slots: [
+      {
+        kind: 'source_image',
+        required: true,
+        min: 1,
+        max: 9,
+        accept: ['image'],
+        label: '源图片',
+        hint: '1-9 张图片，支持多图参考及交互式框选编辑。多图时输出宽高比以最后一张为准。',
+      },
+    ],
+  },
+  batch: { nativeMax: 4, platformMaxFanout: 500 },
+  pollIntervalSec: { initial: 5, max: 20 },
+  docPath: 'doc/wan2.7-img-edit.md',
+  description: '阿里云万相2.7图像编辑模型，支持图像编辑、局部重绘和交互式编辑，最高2K分辨率。',
+  parameterSpec: [
+    {
+      key: 'parameters.size',
+      label: '分辨率',
+      type: 'enum',
+      default: '2K',
+      enum: [
+        { value: '1K', label: '1K (1024×1024)' },
+        { value: '2K', label: '2K (2048×2048)' },
+      ],
+      sweepable: { allowed: true, strategies: ['list'], costMultiplier: 'linear' },
+    },
+    {
+      key: 'parameters.n',
+      label: '生成数量',
+      type: 'int',
+      default: 1,
+      range: [1, 4],
+      step: 1,
+      sweepable: { allowed: false },
+      help: '生成图像数量，范围 1-4，默认 1',
+    },
+    {
+      key: 'parameters.bbox_list',
+      label: '编辑框选区域 (bbox_list)',
+      type: 'string',
+      sweepable: { allowed: false },
+      help: 'JSON 数组格式，长度须与输入图片数一致。若某图无需编辑，传入空列表。如：[[], [[989, 515, 1138, 681]]]',
+    },
+    {
+      key: 'parameters.watermark',
+      label: '添加水印',
+      type: 'bool',
+      default: false,
+      sweepable: { allowed: false },
+    },
+    {
+      key: 'parameters.seed',
+      label: 'Seed',
+      type: 'int',
+      range: [0, 2147483647],
+      sweepable: { allowed: true, strategies: ['list', 'randomSeeds'] },
+    },
+  ],
+};
+
 export const ALL_CAPABILITIES: Capability[] = [
   qwenT2ICapability,
   qwenImageEditCapability,
@@ -826,4 +994,6 @@ export const ALL_CAPABILITIES: Capability[] = [
   wan26R2VCapability,
   wan27R2VCapability,
   wan27VideoEditCapability,
+  wan27ImageCapability,
+  wan27ImageEditCapability,
 ];
