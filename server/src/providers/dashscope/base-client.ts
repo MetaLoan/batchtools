@@ -1,5 +1,12 @@
 import { request } from 'undici';
 import type { ProviderContext, ProviderTaskStatus, ResultAsset } from '@bvp/shared';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { execSync } from 'node:child_process';
+import { nanoid } from 'nanoid';
+import { config } from '../../config.js';
+import { saveUpload } from '../../services/upload-service.js';
 
 export interface DashScopeError extends Error {
   code?: string;
@@ -39,17 +46,117 @@ export function buildDashScopeUrl(endpoint: string, path: string): string {
   return clean + p;
 }
 
+/**
+ * 递归扫描请求体中的所有视频 URL，下载并检测其时长。
+ * 如果超出 10.0 秒，则自动在后台拉取、裁剪为 9.95 秒，并上传到自建 S3 中，替换为裁剪后的新 URL。
+ */
+async function resolveAndTrimExternalVideos(body: any): Promise<any> {
+  if (!body) return body;
+
+  const processValue = async (val: any): Promise<any> => {
+    if (typeof val === 'string') {
+      const lower = val.toLowerCase();
+      // 只处理以 http/https 开头且具有视频后缀的公网 URL
+      // 同时排除已经是我们自建的 S3 桶域名的链接（避免重复处理）
+      const isHttpVideo = /^(https?:\/\/)/.test(lower) && /\.(mp4|mov|webm)(\?|$)/.test(lower);
+      const isTigris = config.s3.bucket && lower.includes(`${config.s3.bucket}.t3.tigrisfiles.io`);
+      
+      if (isHttpVideo && !isTigris) {
+        const tempDir = os.tmpdir();
+        const ext = val.match(/\.(mp4|mov|webm)/i)?.[0] || '.mp4';
+        const tempInputPath = path.join(tempDir, `bvp-ext-in-${nanoid()}${ext}`);
+        const tempOutputPath = path.join(tempDir, `bvp-ext-out-${nanoid()}${ext}`);
+
+        try {
+          console.log(`[video-trim-ext] Checking/downloading external video: ${val}`);
+          // 1. 下载视频到临时文件
+          const res = await request(val, { method: 'GET' });
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            const buf = Buffer.from(await res.body.arrayBuffer());
+            fs.writeFileSync(tempInputPath, buf);
+
+            // 2. 检测时长
+            const probeCmd = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${tempInputPath}"`;
+            const durationStr = execSync(probeCmd, { encoding: 'utf8' }).trim();
+            const duration = parseFloat(durationStr);
+
+            if (!isNaN(duration) && duration > 10.0) {
+              console.log(`[video-trim-ext] External video duration is ${duration}s (exceeds 10s). Trimming to 9.95s...`);
+              
+              // 3. 执行无损裁剪
+              const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss 0 -t 9.95 -c copy "${tempOutputPath}"`;
+              execSync(trimCmd, { stdio: 'ignore' });
+
+              if (fs.existsSync(tempOutputPath)) {
+                const trimmedBuf = fs.readFileSync(tempOutputPath);
+                
+                // 4. 调用 saveUpload 上传至 S3（或本地图床）
+                const uploadRes = await saveUpload({
+                  userId: 'system-trimmed',
+                  filename: `trimmed_${nanoid()}${ext}`,
+                  mime: ext === '.mov' ? 'video/quicktime' : 'video/mp4',
+                  data: trimmedBuf,
+                });
+                
+                console.log(`[video-trim-ext] Trimmed video uploaded. New URL: ${uploadRes.publicUrl}`);
+                return uploadRes.publicUrl;
+              }
+            } else {
+              console.log(`[video-trim-ext] External video duration is ${duration}s (under 10s limit). No trimming needed.`);
+            }
+          } else {
+            console.warn(`[video-trim-ext] Failed to fetch external video. HTTP status: ${res.statusCode}`);
+          }
+        } catch (err) {
+          console.error(`[video-trim-ext] Error during external video check/trimming for ${val}:`, err);
+        } finally {
+          try {
+            if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+            if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+          } catch {}
+        }
+      }
+      return val;
+    }
+
+    if (Array.isArray(val)) {
+      const arr = [];
+      for (const item of val) {
+        arr.push(await processValue(item));
+      }
+      return arr;
+    }
+
+    if (val && typeof val === 'object') {
+      const obj: any = {};
+      for (const [k, v] of Object.entries(val)) {
+        obj[k] = await processValue(v);
+      }
+      return obj;
+    }
+
+    return val;
+  };
+
+  return processValue(body);
+}
+
 export async function dashScopePost<T = unknown>(
   path: string,
   body: unknown,
   ctx: ProviderContext,
   opts: { async?: boolean } = {}
 ): Promise<T> {
+  let finalBody = body;
+  if (body && typeof body === 'object') {
+    finalBody = await resolveAndTrimExternalVideos(body);
+  }
+
   const url = buildDashScopeUrl(ctx.endpoint, path);
   const res = await request(url, {
     method: 'POST',
     headers: buildHeaders(ctx, opts),
-    body: JSON.stringify(body),
+    body: JSON.stringify(finalBody),
     signal: ctx.signal,
   });
   const text = await res.body.text();

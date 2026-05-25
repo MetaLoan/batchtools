@@ -3,6 +3,8 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { config } from '../config.js';
 import { db } from '../db/index.js';
 import { uploads } from '../db/schema.js';
+import { execSync } from 'node:child_process';
+import os from 'node:os';
 
 let s3Client: S3Client | null = null;
 function getS3Client() {
@@ -52,6 +54,45 @@ export async function saveUpload(input: UploadInput): Promise<UploadResult> {
   if (input.data.length > config.uploadMaxBytes) {
     throw new Error(`File exceeds max size ${config.uploadMaxBytes} bytes`);
   }
+
+  let mediaData = input.data;
+
+  // 视频超限自动无损裁剪
+  if (input.mime.startsWith('video/')) {
+    const tempDir = os.tmpdir();
+    const inputExt = path.extname(input.filename) || '.mp4';
+    const tempInputPath = path.join(tempDir, `bvp-in-${nanoid()}${inputExt}`);
+    const tempOutputPath = path.join(tempDir, `bvp-out-${nanoid()}${inputExt}`);
+
+    try {
+      fs.writeFileSync(tempInputPath, input.data);
+
+      // 使用 ffprobe 获取时长
+      const probeCmd = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${tempInputPath}"`;
+      const durationStr = execSync(probeCmd, { encoding: 'utf8' }).trim();
+      const duration = parseFloat(durationStr);
+
+      if (!isNaN(duration) && duration > 10.0) {
+        console.log(`[video-trim] Video ${input.filename} duration is ${duration}s (exceeds 10s). Trimming to 9.95s...`);
+        // 使用 ffmpeg 执行无损裁剪
+        const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss 0 -t 9.95 -c copy "${tempOutputPath}"`;
+        execSync(trimCmd, { stdio: 'ignore' });
+
+        if (fs.existsSync(tempOutputPath)) {
+          mediaData = fs.readFileSync(tempOutputPath);
+          console.log(`[video-trim] Successfully trimmed video. New size: ${mediaData.length} bytes.`);
+        }
+      }
+    } catch (err) {
+      console.error('[video-trim] Error during video duration check/trimming:', err);
+    } finally {
+      try {
+        if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+        if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+      } catch {}
+    }
+  }
+
   const id = nanoid();
   const ext = safeExt(input.filename);
   const now = Date.now();
@@ -63,7 +104,7 @@ export async function saveUpload(input: UploadInput): Promise<UploadResult> {
       new PutObjectCommand({
         Bucket: config.s3.bucket,
         Key: s3Key,
-        Body: input.data,
+        Body: mediaData,
         ContentType: input.mime,
       })
     );
@@ -79,7 +120,7 @@ export async function saveUpload(input: UploadInput): Promise<UploadResult> {
         accountId: '',
         filename: input.filename,
         mime: input.mime,
-        bytes: input.data.length,
+        bytes: mediaData.length,
         storagePath: `s3://${config.s3.bucket}/${s3Key}`,
         signedKey: '',
         publicUrl,
@@ -92,7 +133,7 @@ export async function saveUpload(input: UploadInput): Promise<UploadResult> {
       id,
       publicUrl,
       expiresAt,
-      bytes: input.data.length,
+      bytes: mediaData.length,
       filename: input.filename,
       mime: input.mime,
     };
@@ -103,7 +144,7 @@ export async function saveUpload(input: UploadInput): Promise<UploadResult> {
   fs.mkdirSync(path.join(baseDir, input.userId), { recursive: true });
   const relPath = path.join(input.userId, `${id}${ext}`);
   const absPath = path.join(baseDir, relPath);
-  fs.writeFileSync(absPath, input.data);
+  fs.writeFileSync(absPath, mediaData);
 
   const expiresAt = now + config.uploadTtlHours * 3600 * 1000;
   const signedPayload = `${input.userId}|${id}|${expiresAt}`;
@@ -117,7 +158,7 @@ export async function saveUpload(input: UploadInput): Promise<UploadResult> {
       accountId: '',
       filename: input.filename,
       mime: input.mime,
-      bytes: input.data.length,
+      bytes: mediaData.length,
       storagePath: relPath,
       signedKey,
       publicUrl,
@@ -130,7 +171,7 @@ export async function saveUpload(input: UploadInput): Promise<UploadResult> {
     id,
     publicUrl,
     expiresAt,
-    bytes: input.data.length,
+    bytes: mediaData.length,
     filename: input.filename,
     mime: input.mime,
   };
