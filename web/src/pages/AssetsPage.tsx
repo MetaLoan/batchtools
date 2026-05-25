@@ -58,9 +58,11 @@ export default function AssetsPage() {
                         <div className="truncate text-xs">{u.filename}</div>
                         <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
                           <span>{formatBytes(u.bytes)}</span>
-                          <span className="flex items-center gap-1">
-                            <Clock size={10} /> {formatCountdown(u.expiresAt)}
-                          </span>
+                          {u.expiresAt && u.expiresAt < Date.now() + 10 * 365 * 24 * 3600 * 1000 ? (
+                            <span className="flex items-center gap-1">
+                              <Clock size={10} /> {formatCountdown(u.expiresAt)}
+                            </span>
+                          ) : null}
                         </div>
                         <button
                           onClick={() => copy(u.publicUrl)}

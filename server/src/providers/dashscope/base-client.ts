@@ -1,7 +1,4 @@
 import { request } from 'undici';
-import fs from 'node:fs';
-import { getUploadDetails } from '../../services/upload-service.js';
-import { config, isProd } from '../../config.js';
 import type { ProviderContext, ProviderTaskStatus, ResultAsset } from '@bvp/shared';
 
 export interface DashScopeError extends Error {
@@ -48,16 +45,11 @@ export async function dashScopePost<T = unknown>(
   ctx: ProviderContext,
   opts: { async?: boolean } = {}
 ): Promise<T> {
-  let finalBody = body;
-  if (body && typeof body === 'object') {
-    finalBody = await resolveLocalMediaForEnvironment(body);
-  }
-
   const url = buildDashScopeUrl(ctx.endpoint, path);
   const res = await request(url, {
     method: 'POST',
     headers: buildHeaders(ctx, opts),
-    body: JSON.stringify(finalBody),
+    body: JSON.stringify(body),
     signal: ctx.signal,
   });
   const text = await res.body.text();
@@ -198,9 +190,7 @@ export function extractResultAssets(resp: unknown): ResultAsset[] {
     }
   }
 
-  const ttl = 24 * 3600 * 1000;
-  const expiresAt = new Date(Date.now() + ttl).toISOString();
-  return urls.map((u) => ({ ...u, expiresAt }));
+  return urls.map((u) => ({ ...u }));
 }
 
 export interface PolledTask {
@@ -282,64 +272,4 @@ export function formatParameters(params: Record<string, unknown>): Record<string
   return result;
 }
 
-/**
- * 自动将本地上传的图片转换为 Base64 Data URL 格式
- */
-async function convertLocalFileToBase64DataUrl(localPath: string, mimeType: string): Promise<string> {
-  const fileBuffer = fs.readFileSync(localPath);
-  const base64Data = fileBuffer.toString('base64');
-  return `data:${mimeType};base64,${base64Data}`;
-}
-
-/**
- * 根据运行环境自动处理本地上传的 URL 资源。
- * - 生产环境（Fly.io）且配置了公网域名时：直接保持公网 URL 原样发送，让网关/百炼通过网络拉取，防止 Base64 数据过大。
- * - 本地开发环境（config.publicHost 包含 localhost/127.0.0.1 时）：自动转换为 Base64 格式发送以避开连通性报错。
- */
-export async function resolveLocalMediaForEnvironment(body: any): Promise<any> {
-  const isLocalHost = config.publicHost.includes('localhost') || config.publicHost.includes('127.0.0.1');
-  if (isProd && !isLocalHost) {
-    // 生产环境且不是 localhost 宿主，直接保留原样公网 URL，百炼可以直接拉取，不需要转 base64
-    return body;
-  }
-
-  if (!body) return body;
-
-  const processValue = async (val: any): Promise<any> => {
-    if (typeof val === 'string') {
-      const match = val.match(/\/uploads\/([^/]+)\/([^?#]+)/);
-      if (match) {
-        const userId = match[1];
-        const rawFilename = match[2];
-        const id = rawFilename.split('.')[0];
-        
-        const details = getUploadDetails(userId, id);
-        if (details && fs.existsSync(details.storagePath)) {
-          return await convertLocalFileToBase64DataUrl(details.storagePath, details.mime);
-        }
-      }
-      return val;
-    }
-
-    if (Array.isArray(val)) {
-      const arr = [];
-      for (const item of val) {
-        arr.push(await processValue(item));
-      }
-      return arr;
-    }
-
-    if (val && typeof val === 'object') {
-      const obj: any = {};
-      for (const [k, v] of Object.entries(val)) {
-        obj[k] = await processValue(v);
-      }
-      return obj;
-    }
-
-    return val;
-  };
-
-  return processValue(body);
-}
 

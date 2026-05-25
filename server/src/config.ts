@@ -24,6 +24,13 @@ export const config = {
   // DashScope accounts are managed centrally via this YAML file (operator/devops territory)
   accountsConfigFile:
     process.env.DASHSCOPE_ACCOUNTS_FILE ?? path.join(PROJECT_ROOT, 'accounts.yaml'),
+  s3: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    endpoint: process.env.AWS_ENDPOINT_URL_S3,
+    bucket: process.env.BUCKET_NAME,
+    region: process.env.AWS_REGION || 'auto',
+  },
 };
 
 export const isProd = process.env.NODE_ENV === 'production';

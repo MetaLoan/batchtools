@@ -21,7 +21,7 @@ export async function uploadRoutes(app: FastifyInstance) {
     }
     const data = await file.toBuffer();
     try {
-      const result = saveUpload({
+      const result = await saveUpload({
         userId: req.currentUser!.id,
         filename: file.filename,
         mime: file.mimetype,

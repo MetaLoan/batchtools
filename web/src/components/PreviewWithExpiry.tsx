@@ -9,19 +9,24 @@ export default function PreviewWithExpiry({
   kind,
 }: {
   url: string;
-  expiresAt: string | number;
+  expiresAt?: string | number;
   kind: 'image' | 'video';
 }) {
-  const expTs = typeof expiresAt === 'string' ? new Date(expiresAt).getTime() : expiresAt;
+  const hasExpiry = expiresAt !== undefined && expiresAt !== null && expiresAt !== '';
+  const expTs = hasExpiry
+    ? (typeof expiresAt === 'string' ? new Date(expiresAt).getTime() : (expiresAt as number))
+    : 0;
+
   const [tick, setTick] = useState(0);
   useEffect(() => {
+    if (!hasExpiry) return;
     const t = setInterval(() => setTick((x) => x + 1), 30_000);
     return () => clearInterval(t);
-  }, []);
+  }, [hasExpiry]);
 
-  const remaining = expTs - Date.now();
-  const expired = remaining <= 0;
-  const danger = !expired && remaining < 2 * 3600 * 1000;
+  const remaining = hasExpiry ? expTs - Date.now() : 999999999;
+  const expired = hasExpiry && remaining <= 0;
+  const danger = hasExpiry && !expired && remaining < 2 * 3600 * 1000;
 
   return (
     <div className="surface relative overflow-hidden">
@@ -40,20 +45,22 @@ export default function PreviewWithExpiry({
           preload="metadata"
         />
       )}
-      <div
-        className={clsx(
-          'absolute right-2 top-2 flex items-center gap-1 rounded-md px-2 py-0.5 text-xs backdrop-blur',
-          expired
-            ? 'bg-zinc-900/80 text-zinc-500'
-            : danger
-              ? 'bg-amber-500/20 text-amber-200'
-              : 'bg-black/60 text-zinc-300'
-        )}
-      >
-        <Clock size={12} />
-        <span suppressHydrationWarning>{formatCountdown(expTs)}</span>
-        {tick < 0 ? null : null}
-      </div>
+      {hasExpiry && (
+        <div
+          className={clsx(
+            'absolute right-2 top-2 flex items-center gap-1 rounded-md px-2 py-0.5 text-xs backdrop-blur',
+            expired
+              ? 'bg-zinc-900/80 text-zinc-500'
+              : danger
+                ? 'bg-amber-500/20 text-amber-200'
+                : 'bg-black/60 text-zinc-300'
+          )}
+        >
+          <Clock size={12} />
+          <span suppressHydrationWarning>{formatCountdown(expTs)}</span>
+          {tick < 0 ? null : null}
+        </div>
+      )}
     </div>
   );
 }

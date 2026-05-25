@@ -21,7 +21,7 @@ export interface ProviderHandle {
 export interface ResultAsset {
   kind: 'image' | 'video';
   url: string;
-  expiresAt: string;
+  expiresAt?: string;
   width?: number;
   height?: number;
   mime?: string;

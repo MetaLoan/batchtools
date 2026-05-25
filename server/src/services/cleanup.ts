@@ -7,29 +7,8 @@ const CLEANUP_TICK_MS = 60 * 60 * 1000;
 let timer: NodeJS.Timeout | null = null;
 
 function markExpiredResults(): number {
-  const now = Date.now();
-  const rows = db
-    .select()
-    .from(subJobs)
-    .where(eq(subJobs.status, 'SUCCEEDED'))
-    .all();
-  let count = 0;
-  for (const r of rows) {
-    if (!r.resultUrlsJson) continue;
-    let urls: { expiresAt?: string }[] = [];
-    try {
-      urls = JSON.parse(r.resultUrlsJson);
-    } catch {
-      continue;
-    }
-    if (urls.length === 0) continue;
-    const allExpired = urls.every((u) => u.expiresAt && new Date(u.expiresAt).getTime() < now);
-    if (allExpired) {
-      db.update(subJobs).set({ status: 'SUCCEEDED_EXPIRED' }).where(eq(subJobs.id, r.id)).run();
-      count++;
-    }
-  }
-  return count;
+  // Sprize 产物结果链接永久有效，不再标记为已过期
+  return 0;
 }
 
 function expireOldInFlight(): number {
