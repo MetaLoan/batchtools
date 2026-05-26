@@ -237,14 +237,6 @@ export async function strategyRoutes(app: FastifyInstance) {
             url: strategy.refImageUrl,
           }
         ];
-        
-        if (randomAudioUrl) {
-          baseMedia.push({
-            kind: 'reference_voice',
-            url: randomAudioUrl,
-            boundTo: 'image_ref',
-          });
-        }
 
         const job = createJob({
           userId: req.currentUser!.id,
