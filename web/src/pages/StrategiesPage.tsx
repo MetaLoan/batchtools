@@ -443,7 +443,7 @@ export default function StrategiesPage() {
                       <div className="flex flex-1 flex-col p-4">
                         <div className="mb-4 flex-1">
                           <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                            面部设定 & 画面基调
+                            角色设定 & 画面基调
                           </div>
                           <div className="mt-1.5 line-clamp-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5 text-xs text-zinc-300 leading-relaxed italic">
                             “ {strategy.persona} ”
@@ -682,15 +682,14 @@ export default function StrategiesPage() {
 
           <div>
             <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
-              人物脸部五官与面容描述 (Prompt 核心面部约束)
+              角色设定与基调描述 (例如：古装冷艳女刺客)
             </label>
             <Input.TextArea
               value={newPersona}
               onChange={(e) => setNewPersona(e.target.value)}
               rows={4}
-              placeholder="请输入对于角色面容的精细描述，例如：
-一名长相冷艳、五官深邃如雕刻般的银发冷酷女刺客。
-（注：大模型生成画面时将强约束生成此面部，并为您构思各种富有想象力的暗示性、窥视感运镜与全新创意的擦边情调服装，画幅默认输出为 9:16 竖屏）"
+              placeholder="请简单输入角色的人设定调（例如：一名高冷艳丽的古装红衣女刺客）。
+（注：您无需冗余描述五官细节。Grok 会在生成提示词时自动指示视频模型继承参考图面容特征，并在此基础上自由为您设计情调服装和运镜）"
               className="bg-zinc-900 border-zinc-800 text-zinc-100 hover:border-brand-500 focus:border-brand-500"
             />
           </div>
