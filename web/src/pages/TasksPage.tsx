@@ -82,7 +82,11 @@ export default function TasksPage() {
   const filteredJobs = jobs.filter((j) => {
     if (filterCap && j.capabilityId !== filterCap) return false;
     if (filterStatus && j.status !== filterStatus) return false;
-    if (search && !(j.basePrompt ?? '').toLowerCase().includes(search.toLowerCase()) && !j.id.toLowerCase().startsWith(search.toLowerCase())) return false;
+    if (search) {
+      const promptMatch = (j.basePrompt ?? '').toLowerCase().includes(search.toLowerCase());
+      const idMatch = (j.id ?? '').toLowerCase().startsWith(search.toLowerCase());
+      if (!promptMatch && !idMatch) return false;
+    }
     return true;
   });
 
@@ -92,7 +96,7 @@ export default function TasksPage() {
     if (filterStatus && s.status !== filterStatus) return false;
     if (search) {
       const promptMatch = (s.paramsSnapshot?.prompt ?? '').toLowerCase().includes(search.toLowerCase());
-      const idMatch = s.jobId.toLowerCase().startsWith(search.toLowerCase()) || s.id.toLowerCase().startsWith(search.toLowerCase());
+      const idMatch = (s.jobId ?? '').toLowerCase().startsWith(search.toLowerCase()) || (s.id ?? '').toLowerCase().startsWith(search.toLowerCase());
       if (!promptMatch && !idMatch) return false;
     }
     return true;
@@ -177,7 +181,7 @@ export default function TasksPage() {
               width: 120,
               render: (id: string) => (
                 <Link to={`/tasks/${id}`} className="font-mono text-xs text-brand-300 hover:underline" onClick={(e) => e.stopPropagation()}>
-                  {id.slice(0, 8)}
+                  {id ? id.slice(0, 8) : ''}
                 </Link>
               ),
             },
@@ -256,7 +260,7 @@ export default function TasksPage() {
                   <Card
                     key={subJob.id}
                     className="border border-zinc-800 bg-zinc-900/30 overflow-hidden hover:border-brand-500/50 transition-colors"
-                    bodyStyle={{ padding: '12px' }}
+                    styles={{ body: { padding: '12px' } }}
                   >
                     {/* Header */}
                     <div className="flex items-center justify-between gap-2 mb-3 text-xs">
@@ -265,7 +269,7 @@ export default function TasksPage() {
                           to={`/tasks/${subJob.jobId}`}
                           className="font-mono text-brand-300 hover:underline"
                         >
-                          #{subJob.indexInJob} ({subJob.jobId.slice(0, 6)})
+                          #{subJob.indexInJob} ({subJob.jobId ? subJob.jobId.slice(0, 6) : ''})
                         </Link>
                         <span className="text-zinc-500">•</span>
                         <span className="text-zinc-400">{capabilityName}</span>
