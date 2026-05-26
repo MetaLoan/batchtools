@@ -1,3 +1,4 @@
+import '../server/src/config.js';
 import { generateScripts } from '../server/src/services/llm-service.js';
 
 async function testGrokGenerator() {
