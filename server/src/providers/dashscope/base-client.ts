@@ -90,8 +90,8 @@ export async function resolveAndTrimExternalVideos(body: any): Promise<any> {
             if (!isNaN(duration) && duration > maxAllowed) {
               console.log(`[video-trim-ext] Video duration is ${duration}s (exceeds limit ${maxAllowed}s). Trimming to ${targetDuration}s...`);
               
-              // 3. 执行无损裁剪
-              const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss 0 -t ${targetDuration} -c copy "${tempOutputPath}"`;
+              // 3. 执行重新编码裁剪（精确控制时长并保证解码兼容性，规避 AlgoError）
+              const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss 0 -t ${targetDuration} -c:v libx264 -preset superfast -crf 23 -c:a aac "${tempOutputPath}"`;
               execSync(trimCmd, { stdio: 'ignore' });
 
               if (fs.existsSync(tempOutputPath)) {

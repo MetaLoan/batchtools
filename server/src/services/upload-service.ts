@@ -74,8 +74,8 @@ export async function saveUpload(input: UploadInput): Promise<UploadResult> {
 
       if (!isNaN(duration) && duration > 10.0) {
         console.log(`[video-trim] Video ${input.filename} duration is ${duration}s (exceeds 10s). Trimming to 9.95s...`);
-        // 使用 ffmpeg 执行无损裁剪
-        const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss 0 -t 9.95 -c copy "${tempOutputPath}"`;
+        // 使用 ffmpeg 执行重新编码裁剪（精确控制时长并保证解码兼容性，规避 AlgoError）
+        const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss 0 -t 9.95 -c:v libx264 -preset superfast -crf 23 -c:a aac "${tempOutputPath}"`;
         execSync(trimCmd, { stdio: 'ignore' });
 
         if (fs.existsSync(tempOutputPath)) {
