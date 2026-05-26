@@ -167,6 +167,17 @@ export function listSubJobsForUser(userId: string, jobId: string): SubJobDetail[
   return rows.map(rowToSubJobDetail);
 }
 
+export function listAllSubJobsForUser(userId: string, limit = 100): SubJobDetail[] {
+  const rows = db
+    .select()
+    .from(subJobs)
+    .where(eq(subJobs.userId, userId))
+    .orderBy(desc(subJobs.submittedAt))
+    .limit(limit)
+    .all();
+  return rows.map(rowToSubJobDetail);
+}
+
 export function rowToSubJobDetail(r: typeof subJobs.$inferSelect): SubJobDetail {
   const lastError = r.lastErrorJson ? JSON.parse(r.lastErrorJson) : undefined;
   return {

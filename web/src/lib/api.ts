@@ -102,6 +102,7 @@ export const api = {
     batchMatrix: BatchMatrix;
   }) => http<{ jobId: string; total: number }>('/v1/jobs', { method: 'POST', body: JSON.stringify(input) }),
   listJobs: (limit = 50) => http<{ jobs: JobSummary[] }>(`/v1/jobs?limit=${limit}`),
+  listSubJobs: (limit = 100) => http<{ subJobs: SubJobDetail[] }>(`/v1/sub_jobs?limit=${limit}`),
   getJob: (jobId: string) =>
     http<{ job: JobDetail; subJobs: SubJobDetail[] }>(`/v1/jobs/${jobId}`),
   cancelJob: (jobId: string) =>

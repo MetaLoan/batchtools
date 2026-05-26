@@ -9,6 +9,7 @@ import {
   listJobsForUser,
   listSubJobsForUser,
   retrySubJobForUser,
+  listAllSubJobsForUser,
 } from '../services/job-service.js';
 import { accountExists } from '../services/account-service.js';
 
@@ -119,6 +120,11 @@ export async function jobRoutes(app: FastifyInstance) {
   app.get('/v1/jobs', async (req) => {
     const { limit } = req.query as { limit?: string };
     return { jobs: listJobsForUser(req.currentUser!.id, limit ? Number(limit) : 50) };
+  });
+
+  app.get('/v1/sub_jobs', async (req) => {
+    const { limit } = req.query as { limit?: string };
+    return { subJobs: listAllSubJobsForUser(req.currentUser!.id, limit ? Number(limit) : 100) };
   });
 
   app.get('/v1/jobs/:id', async (req, reply) => {
