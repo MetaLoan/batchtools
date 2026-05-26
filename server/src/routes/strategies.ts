@@ -207,10 +207,10 @@ export async function strategyRoutes(app: FastifyInstance) {
     try {
       app.log.info(`[strategy] Bulk executing ${prompts.length} video generation jobs for strategy ${id}`);
       
-      // Query random audio if enabled
-      let randomAudioUrl: string | null = null;
+      // Query user audios once if random mode is enabled
+      let userAudios: any[] = [];
       if (strategy.audioMode === 'random') {
-        const userAudios = db
+        userAudios = db
           .select()
           .from(uploads)
           .where(
@@ -220,16 +220,18 @@ export async function strategyRoutes(app: FastifyInstance) {
             )
           )
           .all();
-        if (userAudios.length > 0) {
-          const randomIndex = Math.floor(Math.random() * userAudios.length);
-          randomAudioUrl = userAudios[randomIndex].publicUrl;
-          app.log.info(`[strategy] Selected random audio: ${randomAudioUrl}`);
-        }
       }
 
       const jobIds: string[] = [];
 
       for (const item of prompts) {
+        let randomAudioUrl: string | null = null;
+        if (strategy.audioMode === 'random' && userAudios.length > 0) {
+          const randomIndex = Math.floor(Math.random() * userAudios.length);
+          randomAudioUrl = userAudios[randomIndex].publicUrl;
+          app.log.info(`[strategy] Selected random audio for prompt "${item.title}": ${randomAudioUrl}`);
+        }
+
         const baseMedia: any[] = [
           {
             localId: 'image_ref',
