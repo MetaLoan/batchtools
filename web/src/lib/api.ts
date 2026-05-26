@@ -146,4 +146,19 @@ export const api = {
         expiresAt: number;
       }>;
     }>('/v1/uploads'),
+  renderVideo: (input: {
+    width: number;
+    height: number;
+    muteOriginal?: boolean;
+    audioUrl?: string;
+    segments: Array<{
+      url: string;
+      start: number;
+      duration: number;
+      crop?: { x: number; y: number; w: number; h: number };
+    }>;
+  }) => http<{ trimmedUrl: string }>('/v1/editor/render', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }),
 };

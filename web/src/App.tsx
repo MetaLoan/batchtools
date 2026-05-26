@@ -10,6 +10,7 @@ import QueuePage from './pages/QueuePage';
 import TasksPage from './pages/TasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
 import AssetsPage from './pages/AssetsPage';
+import EditorPage from './pages/EditorPage';
 import SettingsPage from './pages/SettingsPage';
 import { useAppStore } from './lib/store';
 import { useSse } from './lib/sse';
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/tasks/:jobId" element={<TaskDetailPage />} />
         <Route path="/assets" element={<AssetsPage />} />
+        <Route path="/editor" element={<EditorPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
