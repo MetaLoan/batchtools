@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, like } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { requireAuth } from '../lib/auth.js';
 import { db } from '../db/index.js';
-import { strategies } from '../db/schema.js';
+import { strategies, uploads } from '../db/schema.js';
 import { generateScripts } from '../services/llm-service.js';
 import { createJob } from '../services/job-service.js';
 import { accountExists } from '../services/account-service.js';
@@ -15,6 +15,7 @@ interface CreateStrategyBody {
   duration: number;
   capabilityId: string;
   modelVariant: string;
+  audioMode?: string;
 }
 
 interface GenerateBody {
@@ -53,6 +54,7 @@ export async function strategyRoutes(app: FastifyInstance) {
       duration = 10,
       capabilityId,
       modelVariant,
+      audioMode = 'none',
     } = req.body as CreateStrategyBody;
 
     if (!name || !refImageUrl || !persona || !capabilityId || !modelVariant) {
@@ -74,6 +76,7 @@ export async function strategyRoutes(app: FastifyInstance) {
           duration,
           capabilityId,
           modelVariant,
+          audioMode,
           createdAt: now,
         })
         .run();
@@ -168,9 +171,43 @@ export async function strategyRoutes(app: FastifyInstance) {
     try {
       app.log.info(`[strategy] Bulk executing ${prompts.length} video generation jobs for strategy ${id}`);
       
+      // Query random audio if enabled
+      let randomAudioUrl: string | null = null;
+      if (strategy.audioMode === 'random') {
+        const userAudios = db
+          .select()
+          .from(uploads)
+          .where(
+            and(
+              eq(uploads.userId, req.currentUser!.id),
+              like(uploads.mime, 'audio/%')
+            )
+          )
+          .all();
+        if (userAudios.length > 0) {
+          const randomIndex = Math.floor(Math.random() * userAudios.length);
+          randomAudioUrl = userAudios[randomIndex].publicUrl;
+          app.log.info(`[strategy] Selected random audio: ${randomAudioUrl}`);
+        }
+      }
+
       const jobIds: string[] = [];
 
       for (const item of prompts) {
+        const baseMedia: any[] = [
+          {
+            kind: 'reference_image',
+            url: strategy.refImageUrl,
+          }
+        ];
+        
+        if (randomAudioUrl) {
+          baseMedia.push({
+            kind: 'reference_voice',
+            url: randomAudioUrl,
+          });
+        }
+
         const job = createJob({
           userId: req.currentUser!.id,
           accountId,
@@ -178,14 +215,14 @@ export async function strategyRoutes(app: FastifyInstance) {
           modelVariant: strategy.modelVariant,
           basePrompt: item.prompt,
           baseNegativePrompt: '',
-          baseMedia: [
-            {
-              kind: 'reference_image',
-              url: strategy.refImageUrl,
-            }
-          ],
+          baseMedia,
           baseParameters: {
             'parameters.duration': strategy.duration,
+            ...(strategy.capabilityId === 'wan2.6.r2v'
+              ? { 'parameters.size': '1080*1920' }
+              : strategy.capabilityId === 'wan2.7.r2v'
+                ? { 'parameters.ratio': '9:16' }
+                : {}),
           },
           batchMatrix: { axes: [] },
         });

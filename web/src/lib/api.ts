@@ -172,6 +172,7 @@ export const api = {
       duration: number;
       capabilityId: string;
       modelVariant: string;
+      audioMode: string;
       createdAt: number;
     }>>('/v1/strategies'),
   createStrategy: (input: {
@@ -181,6 +182,7 @@ export const api = {
     duration: number;
     capabilityId: string;
     modelVariant: string;
+    audioMode?: string;
   }) => http<any>('/v1/strategies', {
     method: 'POST',
     body: JSON.stringify(input),

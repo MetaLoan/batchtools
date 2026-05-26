@@ -135,6 +135,7 @@ export function runMigrations() {
       duration INTEGER NOT NULL DEFAULT 10,
       capability_id TEXT NOT NULL,
       model_variant TEXT NOT NULL,
+      audio_mode TEXT NOT NULL DEFAULT 'none',
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS strategies_user_idx ON strategies(user_id);
@@ -169,5 +170,8 @@ export function runMigrations() {
   }
   if (!hasColumn('accounts', 'query_endpoint')) {
     sqlite.exec(`ALTER TABLE accounts ADD COLUMN query_endpoint TEXT`);
+  }
+  if (!hasColumn('strategies', 'audio_mode')) {
+    sqlite.exec(`ALTER TABLE strategies ADD COLUMN audio_mode TEXT NOT NULL DEFAULT 'none'`);
   }
 }
