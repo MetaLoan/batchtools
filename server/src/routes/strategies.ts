@@ -9,6 +9,7 @@ import { createJob } from '../services/job-service.js';
 import { accountExists } from '../services/account-service.js';
 
 interface CreateStrategyBody {
+  id?: string;
   name: string;
   refImageUrl: string;
   persona: string;
@@ -46,9 +47,10 @@ export async function strategyRoutes(app: FastifyInstance) {
       .all();
   });
 
-  // 2. 新建策略
+  // 2. 新建或更新策略
   app.post('/v1/strategies', async (req, reply) => {
     const {
+      id: existingId,
       name,
       refImageUrl,
       persona,
@@ -64,25 +66,55 @@ export async function strategyRoutes(app: FastifyInstance) {
       return;
     }
 
-    const id = nanoid();
     const now = Date.now();
+    let id = existingId;
 
     try {
-      db.insert(strategies)
-        .values({
-          id,
-          userId: req.currentUser!.id,
-          name,
-          refImageUrl,
-          persona,
-          duration,
-          capabilityId,
-          modelVariant,
-          audioMode,
-          scenePreference,
-          createdAt: now,
-        })
-        .run();
+      if (id) {
+        // 编辑更新分支
+        const existing = db
+          .select()
+          .from(strategies)
+          .where(eq(strategies.id, id))
+          .get();
+
+        if (!existing || existing.userId !== req.currentUser!.id) {
+          reply.code(404).send({ error: 'Strategy not found or unauthorized' });
+          return;
+        }
+
+        db.update(strategies)
+          .set({
+            name,
+            refImageUrl,
+            persona,
+            duration,
+            capabilityId,
+            modelVariant,
+            audioMode,
+            scenePreference,
+          })
+          .where(eq(strategies.id, id))
+          .run();
+      } else {
+        // 新增创建分支
+        id = nanoid();
+        db.insert(strategies)
+          .values({
+            id,
+            userId: req.currentUser!.id,
+            name,
+            refImageUrl,
+            persona,
+            duration,
+            capabilityId,
+            modelVariant,
+            audioMode,
+            scenePreference,
+            createdAt: now,
+          })
+          .run();
+      }
 
       const created = db.select().from(strategies).where(eq(strategies.id, id)).get();
       reply.code(201).send(created);
@@ -229,6 +261,7 @@ export async function strategyRoutes(app: FastifyInstance) {
               : strategy.capabilityId === 'wan2.7.r2v'
                 ? { 'parameters.ratio': '9:16' }
                 : {}),
+            'extra.audioUrl': randomAudioUrl || '',
           },
           batchMatrix: { axes: [] },
         });

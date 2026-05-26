@@ -72,6 +72,7 @@ export default function StrategiesPage() {
   const [newAudioMode, setNewAudioMode] = useState('none');
   const [isUploading, setIsUploading] = useState(false);
   const [newScenePreference, setNewScenePreference] = useState('');
+  const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
 
   // State: Script Workspace Drawer
   const [activeStrategy, setActiveStrategy] = useState<any | null>(null);
@@ -149,6 +150,7 @@ export default function StrategiesPage() {
   // Mutations
   const createMutation = useMutation({
     mutationFn: (input: {
+      id?: string;
       name: string;
       refImageUrl: string;
       persona: string;
@@ -188,6 +190,7 @@ export default function StrategiesPage() {
     setSelectedModelIndex(0);
     setNewAudioMode('none');
     setNewScenePreference('');
+    setEditingStrategyId(null);
   };
 
   const handleCustomUpload = async (options: any) => {
@@ -238,6 +241,7 @@ export default function StrategiesPage() {
 
     const model = R2V_MODELS[selectedModelIndex];
     createMutation.mutate({
+      id: editingStrategyId || undefined,
       name: newStrategyName,
       refImageUrl: newRefImageUrl,
       persona: newPersona,
@@ -247,6 +251,24 @@ export default function StrategiesPage() {
       audioMode: newAudioMode,
       scenePreference: newScenePreference || undefined,
     });
+  };
+
+  const handleEdit = (strategy: any) => {
+    setEditingStrategyId(strategy.id);
+    setNewStrategyName(strategy.name);
+    setNewRefImageUrl(strategy.refImageUrl);
+    setNewPersona(strategy.persona);
+    setNewDuration(strategy.duration);
+
+    const modelIdx = R2V_MODELS.findIndex(
+      (m) =>
+        m.capabilityId === strategy.capabilityId &&
+        m.modelVariant === strategy.modelVariant
+    );
+    setSelectedModelIndex(modelIdx >= 0 ? modelIdx : 0);
+    setNewAudioMode(strategy.audioMode || 'none');
+    setNewScenePreference(strategy.scenePreference || '');
+    setIsCreateOpen(true);
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -498,6 +520,12 @@ export default function StrategiesPage() {
                             智能生成分镜
                           </Button>
                           <Button
+                            onClick={() => handleEdit(strategy)}
+                            className="!h-9 border border-zinc-800 bg-zinc-950/40 text-zinc-300 hover:text-brand-400 hover:border-brand-500"
+                          >
+                            编辑
+                          </Button>
+                          <Button
                             type="text"
                             danger
                             icon={<Trash2 size={14} />}
@@ -632,12 +660,15 @@ export default function StrategiesPage() {
       <Modal
         title={
           <div className="text-zinc-200 font-semibold text-lg flex items-center gap-2">
-            <Plus size={18} className="text-brand-400" />
-            <span>新建人设策略预设</span>
+            {editingStrategyId ? <Sparkles size={18} className="text-brand-400" /> : <Plus size={18} className="text-brand-400" />}
+            <span>{editingStrategyId ? '编辑人设策略预设' : '新建人设策略预设'}</span>
           </div>
         }
         open={isCreateOpen}
-        onCancel={() => setIsCreateOpen(false)}
+        onCancel={() => {
+          setIsCreateOpen(false);
+          resetCreateForm();
+        }}
         footer={null}
         width={580}
         destroyOnClose
@@ -781,7 +812,7 @@ export default function StrategiesPage() {
               loading={createMutation.isPending}
               className="bg-brand-600 hover:bg-brand-500 border-none text-white"
             >
-              立即创建
+              {editingStrategyId ? '保存修改' : '立即创建'}
             </Button>
           </div>
         </div>

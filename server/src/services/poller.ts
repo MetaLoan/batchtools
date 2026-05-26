@@ -74,11 +74,77 @@ async function pollOne(row: typeof subJobs.$inferSelect): Promise<void> {
     const now = Date.now();
 
     if (result.status === 'SUCCEEDED') {
+      let finalResultUrls = result.resultUrls;
+
+      try {
+        const snapshotParams = row.paramsSnapshotJson ? JSON.parse(row.paramsSnapshotJson) : {};
+        const params = snapshotParams.params || {};
+        const audioUrl = params['extra.audioUrl'];
+
+        if (audioUrl && finalResultUrls && finalResultUrls.length > 0) {
+          console.log(`[poller] Post-processing audio mixing for subJob ${row.id}. Audio: ${audioUrl}`);
+          const videoUrl = finalResultUrls[0].url;
+
+          let width = 720;
+          let height = 1280;
+          const sizeStr = params['parameters.size'];
+          if (typeof sizeStr === 'string' && sizeStr.includes('*')) {
+            const parts = sizeStr.split('*');
+            const w = parseInt(parts[0]);
+            const h = parseInt(parts[1]);
+            if (!isNaN(w) && !isNaN(h)) {
+              width = w;
+              height = h;
+            }
+          } else {
+            const ratioStr = params['parameters.ratio'];
+            if (ratioStr === '9:16') {
+              width = 720;
+              height = 1280;
+            } else if (ratioStr === '16:9') {
+              width = 1280;
+              height = 720;
+            }
+          }
+
+          let duration = 10;
+          const durationVal = params['parameters.duration'];
+          if (typeof durationVal === 'number') {
+            duration = durationVal;
+          } else if (typeof durationVal === 'string') {
+            const parsed = parseInt(durationVal);
+            if (!isNaN(parsed)) duration = parsed;
+          }
+
+          const { renderVideo } = await import('./editor-service.js');
+          const mixedUrl = await renderVideo({
+            width,
+            height,
+            muteOriginal: true,
+            audioUrl,
+            segments: [{ url: videoUrl, start: 0, duration }]
+          }, row.userId, {
+            info: (m) => console.log(`[poller-mix] ${m}`),
+            debug: (m) => console.log(`[poller-mix-debug] ${m}`),
+            warn: (m, e) => console.warn(`[poller-mix-warn] ${m}`, e),
+            error: (m, e) => console.error(`[poller-mix-error] ${m}`, e),
+          });
+
+          finalResultUrls = [{
+            ...finalResultUrls[0],
+            url: mixedUrl
+          }];
+          console.log(`[poller] Audio mixing succeeded for subJob ${row.id}. Output: ${mixedUrl}`);
+        }
+      } catch (mixErr) {
+        console.error(`[poller] Audio mixing failed for subJob ${row.id}:`, mixErr);
+      }
+
       if (row.status === 'CANCELING') {
         db.update(subJobs)
           .set({
             status: 'CANCELED_BUT_DELIVERED',
-            resultUrlsJson: result.resultUrls ? JSON.stringify(result.resultUrls) : null,
+            resultUrlsJson: finalResultUrls ? JSON.stringify(finalResultUrls) : null,
             finishedAt: now,
             origPrompt: result.origPrompt,
             actualPrompt: result.actualPrompt,
@@ -90,7 +156,7 @@ async function pollOne(row: typeof subJobs.$inferSelect): Promise<void> {
         db.update(subJobs)
           .set({
             status: 'SUCCEEDED',
-            resultUrlsJson: result.resultUrls ? JSON.stringify(result.resultUrls) : null,
+            resultUrlsJson: finalResultUrls ? JSON.stringify(finalResultUrls) : null,
             finishedAt: now,
             origPrompt: result.origPrompt,
             actualPrompt: result.actualPrompt,
@@ -107,7 +173,7 @@ async function pollOne(row: typeof subJobs.$inferSelect): Promise<void> {
           subJobId: row.id,
           jobId: row.jobId,
           status: 'SUCCEEDED',
-          resultUrls: result.resultUrls,
+          resultUrls: finalResultUrls,
         },
         ts: now,
       });

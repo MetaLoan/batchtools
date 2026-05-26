@@ -178,6 +178,7 @@ export const api = {
       createdAt: number;
     }>>('/v1/strategies'),
   createStrategy: (input: {
+    id?: string;
     name: string;
     refImageUrl: string;
     persona: string;
