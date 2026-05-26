@@ -200,6 +200,7 @@ export async function strategyRoutes(app: FastifyInstance) {
       for (const item of prompts) {
         const baseMedia: any[] = [
           {
+            localId: 'image_ref',
             kind: 'reference_image',
             url: strategy.refImageUrl,
           }
@@ -209,6 +210,7 @@ export async function strategyRoutes(app: FastifyInstance) {
           baseMedia.push({
             kind: 'reference_voice',
             url: randomAudioUrl,
+            boundTo: 'image_ref',
           });
         }
 
