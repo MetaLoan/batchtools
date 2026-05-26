@@ -91,7 +91,9 @@ export async function resolveAndTrimExternalVideos(body: any): Promise<any> {
               console.log(`[video-trim-ext] Video duration is ${duration}s (exceeds limit ${maxAllowed}s). Trimming to ${targetDuration}s...`);
               
               // 3. 执行重新编码裁剪（精确控制时长并保证解码兼容性，规避 AlgoError）
-              const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss 0 -t ${targetDuration} -c:v libx264 -preset superfast -crf 23 -c:a aac "${tempOutputPath}"`;
+              // 如果是视频续写(isFirstClip)，我们保留结尾画面，砍掉开头的多余时间，确保大模型续写的最后一帧与画面完美衔接
+              const startOffset = isFirstClip ? Math.max(0, duration - targetDuration) : 0;
+              const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss ${startOffset} -t ${targetDuration} -c:v libx264 -preset superfast -crf 23 -c:a aac "${tempOutputPath}"`;
               execSync(trimCmd, { stdio: 'ignore' });
 
               if (fs.existsSync(tempOutputPath)) {
