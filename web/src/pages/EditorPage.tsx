@@ -165,6 +165,13 @@ export default function EditorPage() {
   ) => {
     e.stopPropagation();
     e.preventDefault();
+
+    // 拖动时自动暂停播放，方便用户看清帧画面
+    if (videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+
     const startX = e.clientX;
     const segment = segments[index];
     const origStart = segment.start;
@@ -173,24 +180,38 @@ export default function EditorPage() {
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const dx = (moveEvent.clientX - startX) / pxPerSec;
+      
+      let finalStart = origStart;
+      let finalDuration = origDuration;
+
+      if (type === 'right') {
+        // 往右拉延长，往左拉缩短
+        const newDur = Math.max(0.5, Math.min(origDuration + dx, maxDur - origStart));
+        finalDuration = Number(newDur.toFixed(2));
+      } else {
+        // 左边缘拖拽：向右拖动起点增加，时长相应减少
+        const newStart = Math.max(0, Math.min(origStart + dx, origStart + origDuration - 0.5));
+        const newDur = origDuration - (newStart - origStart);
+        finalStart = Number(newStart.toFixed(2));
+        finalDuration = Number(newDur.toFixed(2));
+      }
+
       setSegments((prev) => {
         const next = [...prev];
-        const seg = { ...next[index] };
-        
-        if (type === 'right') {
-          // 往右拉延长，往左拉缩短
-          const newDur = Math.max(0.5, Math.min(origDuration + dx, maxDur - seg.start));
-          seg.duration = Number(newDur.toFixed(2));
-        } else {
-          // 左边缘拖拽：向右拖动起点增加，时长相应减少
-          const newStart = Math.max(0, Math.min(origStart + dx, origStart + origDuration - 0.5));
-          const newDur = origDuration - (newStart - origStart);
-          seg.start = Number(newStart.toFixed(2));
-          seg.duration = Number(newDur.toFixed(2));
-        }
-        next[index] = seg;
+        next[index] = {
+          ...next[index],
+          start: finalStart,
+          duration: finalDuration,
+        };
         return next;
       });
+
+      // 动态更新视频预览帧
+      if (videoRef.current) {
+        // 拖动左边缘预览裁剪起点帧，拖动右边缘预览裁剪终点帧
+        const seekTime = type === 'right' ? (finalStart + finalDuration) : finalStart;
+        videoRef.current.currentTime = seekTime;
+      }
     };
 
     const handleMouseUp = () => {
