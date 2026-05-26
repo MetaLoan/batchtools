@@ -16,6 +16,7 @@ interface CreateStrategyBody {
   capabilityId: string;
   modelVariant: string;
   audioMode?: string;
+  scenePreference?: string;
 }
 
 interface GenerateBody {
@@ -55,6 +56,7 @@ export async function strategyRoutes(app: FastifyInstance) {
       capabilityId,
       modelVariant,
       audioMode = 'none',
+      scenePreference,
     } = req.body as CreateStrategyBody;
 
     if (!name || !refImageUrl || !persona || !capabilityId || !modelVariant) {
@@ -77,6 +79,7 @@ export async function strategyRoutes(app: FastifyInstance) {
           capabilityId,
           modelVariant,
           audioMode,
+          scenePreference,
           createdAt: now,
         })
         .run();
@@ -134,6 +137,7 @@ export async function strategyRoutes(app: FastifyInstance) {
         refImageUrl: strategy.refImageUrl,
         duration: strategy.duration,
         count,
+        scenePreference: strategy.scenePreference || undefined,
       });
       reply.send({ scripts });
     } catch (e: any) {

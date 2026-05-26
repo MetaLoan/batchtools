@@ -11,6 +11,7 @@ export async function generateScripts(params: {
   refImageUrl: string;
   duration: number;
   count: number;
+  scenePreference?: string;
 }): Promise<GeneratedScript[]> {
   const apiKey = process.env.GROK_API_KEY;
   if (!apiKey) {
@@ -40,10 +41,15 @@ Each element in the array must be an object with these exact keys:
 - "prompt": The highly descriptive English prompt for video generation (must include reference to the character, describing actions, attire, environment, etc. aligned with the persona, ref image, and the sensual theme).
 - "duration": The video duration in seconds (must be ${params.duration}).`;
 
-  const userPrompt = `Character Persona: ${params.persona}
+  let userPrompt = `Character Persona: ${params.persona}
 Reference Image URL: ${params.refImageUrl}
 Requested video count: ${params.count}
 Please generate ${params.count} different scenes. Ensure each scene heavily emphasizes the character's sensual charm, beauty, and seductive allure. Create distinct plots and highly detailed camera motion.`;
+
+  if (params.scenePreference && params.scenePreference.trim()) {
+    userPrompt += `\n\nCRITICAL DIRECTIVE - Scene & Style Preference (分镜与风格偏好强引导): ${params.scenePreference}
+You MUST strictly follow and incorporate this style preference into the generated actions, environments, camera motions, and attire details. Make it a central guiding theme for the prompts.`;
+  }
 
   const res = await request('https://api.x.ai/v1/chat/completions', {
     method: 'POST',

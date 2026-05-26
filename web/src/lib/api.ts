@@ -174,6 +174,7 @@ export const api = {
       capabilityId: string;
       modelVariant: string;
       audioMode: string;
+      scenePreference?: string;
       createdAt: number;
     }>>('/v1/strategies'),
   createStrategy: (input: {
@@ -184,6 +185,7 @@ export const api = {
     capabilityId: string;
     modelVariant: string;
     audioMode?: string;
+    scenePreference?: string;
   }) => http<any>('/v1/strategies', {
     method: 'POST',
     body: JSON.stringify(input),

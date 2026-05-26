@@ -71,6 +71,7 @@ export default function StrategiesPage() {
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [newAudioMode, setNewAudioMode] = useState('none');
   const [isUploading, setIsUploading] = useState(false);
+  const [newScenePreference, setNewScenePreference] = useState('');
 
   // State: Script Workspace Drawer
   const [activeStrategy, setActiveStrategy] = useState<any | null>(null);
@@ -155,6 +156,7 @@ export default function StrategiesPage() {
       capabilityId: string;
       modelVariant: string;
       audioMode: string;
+      scenePreference?: string;
     }) => api.createStrategy(input),
     onSuccess: () => {
       message.success('人设策略创建成功');
@@ -185,6 +187,7 @@ export default function StrategiesPage() {
     setNewDuration(10);
     setSelectedModelIndex(0);
     setNewAudioMode('none');
+    setNewScenePreference('');
   };
 
   const handleCustomUpload = async (options: any) => {
@@ -242,6 +245,7 @@ export default function StrategiesPage() {
       capabilityId: model.capabilityId,
       modelVariant: model.modelVariant,
       audioMode: newAudioMode,
+      scenePreference: newScenePreference || undefined,
     });
   };
 
@@ -441,13 +445,25 @@ export default function StrategiesPage() {
 
                       {/* Card Content */}
                       <div className="flex flex-1 flex-col p-4">
-                        <div className="mb-4 flex-1">
-                          <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                            角色设定 & 画面基调
+                        <div className="mb-4 flex-1 space-y-3.5">
+                          <div>
+                            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                              角色设定 & 画面基调
+                            </div>
+                            <div className="mt-1.5 line-clamp-2 rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5 text-xs text-zinc-300 leading-relaxed italic">
+                              “ {strategy.persona} ”
+                            </div>
                           </div>
-                          <div className="mt-1.5 line-clamp-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5 text-xs text-zinc-300 leading-relaxed italic">
-                            “ {strategy.persona} ”
-                          </div>
+                          {strategy.scenePreference && (
+                            <div>
+                              <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-400/80">
+                                🎬 分镜偏好风格
+                              </div>
+                              <div className="mt-1.5 line-clamp-2 rounded-lg border border-brand-500/10 bg-brand-500/5 p-2.5 text-xs text-zinc-300 leading-relaxed">
+                                {strategy.scenePreference}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="mb-4 border-t border-zinc-800/80 pt-3 space-y-2">
@@ -687,9 +703,23 @@ export default function StrategiesPage() {
             <Input.TextArea
               value={newPersona}
               onChange={(e) => setNewPersona(e.target.value)}
-              rows={4}
+              rows={3}
               placeholder="请简单输入角色的人设定调（例如：一名高冷艳丽的古装红衣女刺客）。
 （注：您无需冗余描述五官细节。Grok 会在生成提示词时自动指示视频模型继承参考图面容特征，并在此基础上自由为您设计情调服装和运镜）"
+              className="bg-zinc-900 border-zinc-800 text-zinc-100 hover:border-brand-500 focus:border-brand-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>分镜偏好与风格取向 (选填)</span>
+              <span className="text-[10px] text-zinc-500 font-normal normal-case">强力引导 Grok 创作方向</span>
+            </label>
+            <Input.TextArea
+              value={newScenePreference}
+              onChange={(e) => setNewScenePreference(e.target.value)}
+              rows={2}
+              placeholder="例如：'强调湿身与沙滩运动感，多用紧身衣'，或'偏向暗黑邪魅，注重眼神特写与微弱暗光氛围'"
               className="bg-zinc-900 border-zinc-800 text-zinc-100 hover:border-brand-500 focus:border-brand-500"
             />
           </div>

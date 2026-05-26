@@ -136,6 +136,7 @@ export function runMigrations() {
       capability_id TEXT NOT NULL,
       model_variant TEXT NOT NULL,
       audio_mode TEXT NOT NULL DEFAULT 'none',
+      scene_preference TEXT,
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS strategies_user_idx ON strategies(user_id);
@@ -173,5 +174,8 @@ export function runMigrations() {
   }
   if (!hasColumn('strategies', 'audio_mode')) {
     sqlite.exec(`ALTER TABLE strategies ADD COLUMN audio_mode TEXT NOT NULL DEFAULT 'none'`);
+  }
+  if (!hasColumn('strategies', 'scene_preference')) {
+    sqlite.exec(`ALTER TABLE strategies ADD COLUMN scene_preference TEXT`);
   }
 }

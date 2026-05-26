@@ -155,6 +155,7 @@ export const strategies = sqliteTable(
     capabilityId: text('capability_id').notNull(),
     modelVariant: text('model_variant').notNull(),
     audioMode: text('audio_mode').notNull().default('none'),
+    scenePreference: text('scene_preference'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({
