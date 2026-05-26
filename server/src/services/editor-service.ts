@@ -102,13 +102,18 @@ export async function renderVideo(
       const hasAudioCmd = `ffprobe -v error -select_streams a -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${seg.localPath}"`;
       const hasAudio = execSync(hasAudioCmd, { encoding: 'utf8' }).trim() !== '';
 
-      // 组装视频画面滤镜 (先 Crop 剪切局部，然后等比例 Scale 并 Pad 填充黑边)
+      // 组装视频画面滤镜 (Scale + Crop 自适应铺满目标画布，不产生黑边)
       let filterParts: string[] = [];
       if (seg.crop) {
+        // 用户指定了裁剪框：直接把该区域内容裁剪出来，然后强行缩放到画布宽高
         filterParts.push(`crop=${seg.crop.w}:${seg.crop.h}:${seg.crop.x}:${seg.crop.y}`);
+        filterParts.push(`scale=${width}:${height}`);
+      } else {
+        // 用户未指定裁剪框：自动执行“铺满裁剪(Crop-to-fill)”逻辑，确保画面占满画布不留黑边
+        // 先等比例缩放到宽度或高度至少一个先撑满，然后 crop 掉溢出的部分
+        filterParts.push(`scale=w='if(gte(iw/ih,${width}/${height}),-1,${width})':h='if(gte(iw/ih,${width}/${height}),${height},-1)'`);
+        filterParts.push(`crop=${width}:${height}`);
       }
-      filterParts.push(`scale=${width}:${height}:force_original_aspect_ratio=decrease`);
-      filterParts.push(`pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`);
       const videoFilter = filterParts.join(',');
 
       // 构造 FFmpeg 命令
