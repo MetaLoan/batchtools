@@ -84,7 +84,7 @@ export async function resolveAndTrimExternalVideos(body: any): Promise<any> {
             const durationStr = execSync(probeCmd, { encoding: 'utf8' }).trim();
             const duration = parseFloat(durationStr);
 
-            const maxAllowed = isFirstClip ? Math.min(9.2, requestedDuration - 0.8) : 10.0;
+            const maxAllowed = isFirstClip ? Math.min(9.8, requestedDuration - 0.2) : 10.0;
             const targetDuration = isFirstClip ? maxAllowed : 9.95;
 
             if (!isNaN(duration) && duration > maxAllowed) {

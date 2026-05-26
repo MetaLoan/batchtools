@@ -1,27 +1,6 @@
-import http from 'node:http';
-import fs from 'node:fs';
-import path from 'node:path';
 import { resolveAndTrimExternalVideos } from '../server/src/providers/dashscope/base-client.js';
 
-// 启动本地 http 服务托管 dummy.mp4
-const server = http.createServer((req, res) => {
-  if (req.url === '/dummy.mp4') {
-    const filePath = path.join(import.meta.dirname, 'dummy.mp4');
-    const stat = fs.statSync(filePath);
-    res.writeHead(200, {
-      'Content-Type': 'video/mp4',
-      'Content-Length': stat.size
-    });
-    fs.createReadStream(filePath).pipe(res);
-  } else {
-    res.writeHead(404);
-    res.end();
-  }
-});
-
-server.listen(12345, async () => {
-  console.log('Local HTTP server started at http://localhost:12345');
-
+async function runTest() {
   const testBody = {
     model: 'wan2.7-i2v-2026-04-25',
     input: {
@@ -29,12 +8,12 @@ server.listen(12345, async () => {
       media: [
         {
           type: 'first_clip',
-          url: 'http://localhost:12345/dummy.mp4'
+          url: 'https://cdn.sprize.ai/proxy/15781/019e5e8e-f2ba-7a43-ae96-5ecb5b4404e7_0.mp4'
         }
       ]
     },
     parameters: {
-      duration: 8
+      duration: 10
     }
   };
 
@@ -46,7 +25,7 @@ server.listen(12345, async () => {
     console.log('\nProcessed request body:', JSON.stringify(result, null, 2));
   } catch (err: any) {
     console.error('Error during trim check:', err);
-  } finally {
-    server.close();
   }
-});
+}
+
+runTest();
