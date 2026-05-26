@@ -1,6 +1,27 @@
-import { dashScopePost } from '../server/src/providers/dashscope/base-client.js';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { resolveAndTrimExternalVideos } from '../server/src/providers/dashscope/base-client.js';
 
-async function runTest() {
+// 启动本地 http 服务托管 dummy.mp4
+const server = http.createServer((req, res) => {
+  if (req.url === '/dummy.mp4') {
+    const filePath = path.join(import.meta.dirname, 'dummy.mp4');
+    const stat = fs.statSync(filePath);
+    res.writeHead(200, {
+      'Content-Type': 'video/mp4',
+      'Content-Length': stat.size
+    });
+    fs.createReadStream(filePath).pipe(res);
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
+
+server.listen(12345, async () => {
+  console.log('Local HTTP server started at http://localhost:12345');
+
   const testBody = {
     model: 'wan2.7-i2v-2026-04-25',
     input: {
@@ -8,27 +29,24 @@ async function runTest() {
       media: [
         {
           type: 'first_clip',
-          url: 'http://clips.vorwaerts-gmbh.de/VfE_html5.mp4'
+          url: 'http://localhost:12345/dummy.mp4'
         }
       ]
+    },
+    parameters: {
+      duration: 8
     }
   };
 
   console.log('Original request body:', JSON.stringify(testBody, null, 2));
   
-  const ctx = {
-    apiKey: 'test-key',
-    endpoint: 'http://localhost:9999/dummy', // connection will fail, which is expected
-    accountId: 'test-account',
-    requestId: 'test-request',
-  };
-
   try {
-    console.log('\n--- Triggering dashScopePost ---');
-    await dashScopePost('/services/dummy', testBody, ctx as any);
+    console.log('\n--- Triggering resolveAndTrimExternalVideos ---');
+    const result = await resolveAndTrimExternalVideos(testBody);
+    console.log('\nProcessed request body:', JSON.stringify(result, null, 2));
   } catch (err: any) {
-    console.log('\n--- Request finished (Connection error is expected) ---');
+    console.error('Error during trim check:', err);
+  } finally {
+    server.close();
   }
-}
-
-runTest();
+});

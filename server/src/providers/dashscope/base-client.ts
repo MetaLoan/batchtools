@@ -50,25 +50,29 @@ export function buildDashScopeUrl(endpoint: string, path: string): string {
  * 递归扫描请求体中的所有视频 URL，下载并检测其时长。
  * 如果超出 10.0 秒，则自动在后台拉取、裁剪为 9.95 秒，并上传到自建 S3 中，替换为裁剪后的新 URL。
  */
-async function resolveAndTrimExternalVideos(body: any): Promise<any> {
+export async function resolveAndTrimExternalVideos(body: any): Promise<any> {
   if (!body) return body;
 
-  const processValue = async (val: any): Promise<any> => {
+  const requestedDuration = Number(body?.parameters?.duration || 10);
+
+  const processValue = async (val: any, isFirstClip = false): Promise<any> => {
     if (typeof val === 'string') {
       const lower = val.toLowerCase();
       // 只处理以 http/https 开头且具有视频后缀的公网 URL
-      // 同时排除已经是我们自建的 S3 桶域名的链接（避免重复处理）
+      // 同时排除已经是我们自建的 S3 桶域名的链接（除非是 first_clip 需要更短的时长）
       const isHttpVideo = /^(https?:\/\/)/.test(lower) && /\.(mp4|mov|webm)(\?|$)/.test(lower);
-      const isTigris = config.s3.bucket && lower.includes(`${config.s3.bucket}.t3.tigrisfiles.io`);
+      const isTigris = !!(config.s3.bucket && lower.includes(`${config.s3.bucket}.t3.tigrisfiles.io`));
       
-      if (isHttpVideo && !isTigris) {
+      const shouldProcess = isHttpVideo && (!isTigris || isFirstClip);
+
+      if (shouldProcess) {
         const tempDir = os.tmpdir();
         const ext = val.match(/\.(mp4|mov|webm)/i)?.[0] || '.mp4';
         const tempInputPath = path.join(tempDir, `bvp-ext-in-${nanoid()}${ext}`);
         const tempOutputPath = path.join(tempDir, `bvp-ext-out-${nanoid()}${ext}`);
 
         try {
-          console.log(`[video-trim-ext] Checking/downloading external video: ${val}`);
+          console.log(`[video-trim-ext] Checking/downloading external video: ${val} (isFirstClip: ${isFirstClip})`);
           // 1. 下载视频到临时文件
           const res = await request(val, { method: 'GET' });
           if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -80,11 +84,14 @@ async function resolveAndTrimExternalVideos(body: any): Promise<any> {
             const durationStr = execSync(probeCmd, { encoding: 'utf8' }).trim();
             const duration = parseFloat(durationStr);
 
-            if (!isNaN(duration) && duration > 10.0) {
-              console.log(`[video-trim-ext] External video duration is ${duration}s (exceeds 10s). Trimming to 9.95s...`);
+            const maxAllowed = isFirstClip ? Math.min(9.2, requestedDuration - 0.8) : 10.0;
+            const targetDuration = isFirstClip ? maxAllowed : 9.95;
+
+            if (!isNaN(duration) && duration > maxAllowed) {
+              console.log(`[video-trim-ext] Video duration is ${duration}s (exceeds limit ${maxAllowed}s). Trimming to ${targetDuration}s...`);
               
               // 3. 执行无损裁剪
-              const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss 0 -t 9.95 -c copy "${tempOutputPath}"`;
+              const trimCmd = `ffmpeg -y -i "${tempInputPath}" -ss 0 -t ${targetDuration} -c copy "${tempOutputPath}"`;
               execSync(trimCmd, { stdio: 'ignore' });
 
               if (fs.existsSync(tempOutputPath)) {
@@ -102,7 +109,7 @@ async function resolveAndTrimExternalVideos(body: any): Promise<any> {
                 return uploadRes.publicUrl;
               }
             } else {
-              console.log(`[video-trim-ext] External video duration is ${duration}s (under 10s limit). No trimming needed.`);
+              console.log(`[video-trim-ext] Video duration is ${duration}s (under ${maxAllowed}s limit). No trimming needed.`);
             }
           } else {
             console.warn(`[video-trim-ext] Failed to fetch external video. HTTP status: ${res.statusCode}`);
@@ -122,15 +129,16 @@ async function resolveAndTrimExternalVideos(body: any): Promise<any> {
     if (Array.isArray(val)) {
       const arr = [];
       for (const item of val) {
-        arr.push(await processValue(item));
+        arr.push(await processValue(item, isFirstClip));
       }
       return arr;
     }
 
     if (val && typeof val === 'object') {
       const obj: any = {};
+      const isParentFirstClip = val.type === 'first_clip';
       for (const [k, v] of Object.entries(val)) {
-        obj[k] = await processValue(v);
+        obj[k] = await processValue(v, isParentFirstClip || isFirstClip);
       }
       return obj;
     }
