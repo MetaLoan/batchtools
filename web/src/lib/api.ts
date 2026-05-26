@@ -161,4 +161,40 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(input),
   }),
+
+  // Strategies
+  listStrategies: () => 
+    http<Array<{
+      id: string;
+      name: string;
+      refImageUrl: string;
+      persona: string;
+      duration: number;
+      capabilityId: string;
+      modelVariant: string;
+      createdAt: number;
+    }>>('/v1/strategies'),
+  createStrategy: (input: {
+    name: string;
+    refImageUrl: string;
+    persona: string;
+    duration: number;
+    capabilityId: string;
+    modelVariant: string;
+  }) => http<any>('/v1/strategies', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }),
+  deleteStrategy: (id: string) => 
+    http<{ ok: boolean }>(`/v1/strategies/${id}`, { method: 'DELETE' }),
+  generateStrategyScripts: (id: string, count: number) =>
+    http<{ scripts: Array<{ title: string; prompt: string; duration: number }> }>(
+      `/v1/strategies/${id}/generate`,
+      { method: 'POST', body: JSON.stringify({ count }) }
+    ),
+  executeStrategy: (id: string, input: { accountId: string; prompts: Array<{ title: string; prompt: string }> }) =>
+    http<{ ok: boolean; jobIds: string[] }>(`/v1/strategies/${id}/execute`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };

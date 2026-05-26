@@ -138,6 +138,12 @@ export default function AppLayout() {
             onClick={() => navigate('/editor')}
           />
           <NavItem
+            icon={<Wand2 size={16} />}
+            label="人设策略自动化"
+            active={location.pathname === '/strategies'}
+            onClick={() => navigate('/strategies')}
+          />
+          <NavItem
             icon={<SettingsIcon size={16} />}
             label="账户设置"
             active={location.pathname === '/settings'}
@@ -346,6 +352,7 @@ function breadcrumbForPath(pathname: string, capabilities: { id: string; display
   if (pathname.startsWith('/tasks')) return '任务历史';
   if (pathname.startsWith('/assets')) return '素材库';
   if (pathname.startsWith('/editor')) return '视频剪辑';
+  if (pathname.startsWith('/strategies')) return '人设策略自动化';
   if (pathname.startsWith('/settings')) return '账户设置';
   return '';
 }

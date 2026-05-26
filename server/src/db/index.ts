@@ -125,6 +125,19 @@ export function runMigrations() {
       expires_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
+
+    CREATE TABLE IF NOT EXISTS strategies (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      ref_image_url TEXT NOT NULL,
+      persona TEXT NOT NULL,
+      duration INTEGER NOT NULL DEFAULT 10,
+      capability_id TEXT NOT NULL,
+      model_variant TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS strategies_user_idx ON strategies(user_id);
   `);
 
   // Backward-compatible migrations for existing deployments:

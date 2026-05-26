@@ -142,3 +142,21 @@ export const sessions = sqliteTable(
     byUser: index('sessions_user_idx').on(t.userId),
   })
 );
+
+export const strategies = sqliteTable(
+  'strategies',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    name: text('name').notNull(),
+    refImageUrl: text('ref_image_url').notNull(),
+    persona: text('persona').notNull(),
+    duration: integer('duration').notNull().default(10),
+    capabilityId: text('capability_id').notNull(),
+    modelVariant: text('model_variant').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    byUser: index('strategies_user_idx').on(t.userId),
+  })
+);

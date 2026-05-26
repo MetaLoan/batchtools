@@ -15,6 +15,7 @@ import { jobRoutes } from './routes/jobs.js';
 import { uploadRoutes } from './routes/uploads.js';
 import { streamRoutes } from './routes/stream.js';
 import { editorRoutes } from './routes/editor.js';
+import { strategyRoutes } from './routes/strategies.js';
 import { startScheduler } from './services/scheduler.js';
 import { startPoller } from './services/poller.js';
 import { startCleanup } from './services/cleanup.js';
@@ -49,6 +50,7 @@ async function main() {
   await app.register(uploadRoutes);
   await app.register(streamRoutes);
   await app.register(editorRoutes);
+  await app.register(strategyRoutes);
 
   app.get('/healthz', async () => ({ ok: true }));
 
