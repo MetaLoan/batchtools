@@ -203,4 +203,54 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+
+  // TK Bloggers
+  listTkBloggers: () => http<any[]>('/v1/tk_bloggers'),
+  addTkBlogger: (homepageUrl: string) => http<any>('/v1/tk_bloggers', {
+    method: 'POST',
+    body: JSON.stringify({ homepageUrl }),
+  }),
+  deleteTkBlogger: (id: string) => http<{ ok: boolean }>(`/v1/tk_bloggers/${id}`, { method: 'DELETE' }),
+  syncTkBlogger: (id: string) => http<{ ok: boolean; crawledCount: number }>(`/v1/tk_bloggers/${id}/sync`, { method: 'POST' }),
+  getTkBloggerVideos: (id: string) => http<{ videos: any[] }>(`/v1/tk_bloggers/${id}/videos`),
+
+  // Crawler Settings
+  getCrawlerSettings: () => http<{
+    proxy: string;
+    cookiesFromBrowser: string;
+    hasCustomCookiesFile: boolean;
+    cookiesText: string;
+  }>('/v1/crawler/settings'),
+  saveCrawlerSettings: (input: { cookiesText: string }) => http<{ ok: boolean }>('/v1/crawler/settings', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }),
+
+  // Copycat Strategies
+  listCopycatStrategies: () => http<any[]>('/v1/copycat_strategies'),
+  saveCopycatStrategy: (input: {
+    id?: string;
+    accountId: string;
+    name: string;
+    type: string;
+    bloggerIds: string[];
+    filterMinDuration?: number;
+    filterMaxDuration?: number;
+    filterPublishAfter?: number;
+    filterMinPlayCount?: number;
+    filterDeduplicate?: boolean;
+    refImageUrl: string;
+    persona: string;
+    stylePrompt: string;
+    outputCount?: number;
+    reuseAudio?: boolean;
+    crawlIntervalHours?: number;
+  }) => http<any>('/v1/copycat_strategies', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }),
+  toggleCopycatStrategy: (id: string) => http<{ ok: boolean; status: string }>(`/v1/copycat_strategies/${id}/toggle`, { method: 'POST' }),
+  deleteCopycatStrategy: (id: string) => http<{ ok: boolean }>(`/v1/copycat_strategies/${id}`, { method: 'DELETE' }),
+  runCopycatStrategy: (id: string) => http<{ ok: boolean; processedCount: number }>(`/v1/copycat_strategies/${id}/run`, { method: 'POST' }),
+  getCopycatLogs: (id: string) => http<{ logs: any[] }>(`/v1/copycat_strategies/${id}/logs`),
 };

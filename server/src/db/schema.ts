@@ -162,3 +162,87 @@ export const strategies = sqliteTable(
     byUser: index('strategies_user_idx').on(t.userId),
   })
 );
+
+export const tkBloggers = sqliteTable(
+  'tk_bloggers',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    homepageUrl: text('homepage_url').notNull(),
+    handle: text('handle').notNull(),
+    nickname: text('nickname'),
+    avatarUrl: text('avatar_url'),
+    signature: text('signature'), // blogger biography/description
+    crawlError: text('crawl_error'), // error message from last crawl if it failed
+    status: text('status').notNull().default('active'),
+    createdAt: integer('created_at').notNull(),
+    lastCrawledAt: integer('last_crawled_at'),
+  },
+  (t) => ({
+    byUser: index('tk_bloggers_user_idx').on(t.userId),
+  })
+);
+
+export const crawledVideos = sqliteTable(
+  'crawled_videos',
+  {
+    id: text('id').primaryKey(),
+    bloggerId: text('blogger_id').notNull(),
+    uniqueId: text('unique_id').notNull(),
+    title: text('title'),
+    videoUrl: text('video_url').notNull(),
+    downloadUrl: text('download_url').notNull(),
+    coverUrl: text('cover_url'), // video preview thumbnail/cover image
+    durationSec: real('duration_sec').notNull(),
+    publishTime: integer('publish_time').notNull(),
+    playCount: integer('play_count').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    byBlogger: index('crawled_videos_blogger_idx').on(t.bloggerId),
+    byUnique: index('crawled_videos_unique_idx').on(t.uniqueId),
+  })
+);
+
+export const copycatStrategies = sqliteTable(
+  'copycat_strategies',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    accountId: text('account_id').notNull(),
+    name: text('name').notNull(),
+    type: text('type').notNull(), // video_edit | r2v
+    bloggerIdsJson: text('blogger_ids_json').notNull(), // JSON array of selected blogger IDs
+    filterMinDuration: real('filter_min_duration'),
+    filterMaxDuration: real('filter_max_duration'),
+    filterPublishAfter: integer('filter_publish_after'),
+    filterMinPlayCount: integer('filter_min_play_count'),
+    filterDeduplicate: integer('filter_deduplicate').notNull().default(1),
+    refImageUrl: text('ref_image_url').notNull(),
+    persona: text('persona').notNull(),
+    stylePrompt: text('style_prompt').notNull(),
+    outputCount: integer('output_count').notNull().default(1),
+    reuseAudio: integer('reuse_audio').notNull().default(1),
+    crawlIntervalHours: integer('crawl_interval_hours').notNull().default(6),
+    status: text('status').notNull().default('active'),
+    createdAt: integer('created_at').notNull(),
+    lastExecutedAt: integer('last_executed_at'),
+  },
+  (t) => ({
+    byUser: index('copycat_strategies_user_idx').on(t.userId),
+  })
+);
+
+export const copycatProcessedVideos = sqliteTable(
+  'copycat_processed_videos',
+  {
+    strategyId: text('strategy_id').notNull(),
+    videoUniqueId: text('video_unique_id').notNull(),
+    jobId: text('job_id'),
+    processedAt: integer('processed_at').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.strategyId, t.videoUniqueId] }),
+  })
+);
+

@@ -97,6 +97,25 @@ export function createJob(input: CreateJobInput): { jobId: string; total: number
   return { jobId, total: drafts.length };
 }
 
+function safeJsonParse<T>(jsonStr: string | null | undefined, fallback: T): T {
+  if (!jsonStr || jsonStr.trim() === '') return fallback;
+  try {
+    const parsed = JSON.parse(jsonStr);
+    return parsed === null ? fallback : (parsed as T);
+  } catch (e) {
+    console.error(`[safeJsonParse] Failed to parse JSON: "${jsonStr}"`, e);
+    return fallback;
+  }
+}
+
+const defaultParamsSnapshot = {
+  prompt: '',
+  negativePrompt: '',
+  media: [] as MediaInput[],
+  params: {} as Record<string, unknown>,
+  model: '',
+};
+
 function rowToJobSummary(r: typeof jobs.$inferSelect, stats: { done: number; failed: number }): JobSummary {
   return {
     id: r.id,
@@ -151,9 +170,12 @@ export function getJobForUser(userId: string, jobId: string): JobDetail | null {
   return {
     ...rowToJobSummary(r, computeJobStats(r.id)),
     baseNegativePrompt: r.baseNegativePrompt ?? undefined,
-    baseMedia: JSON.parse(r.baseMediaJson),
-    baseParameters: JSON.parse(r.baseParametersJson),
-    batchMatrix: JSON.parse(r.batchMatrixJson),
+    baseMedia: safeJsonParse<MediaInput[]>(r.baseMediaJson, []),
+    baseParameters: safeJsonParse<Record<string, unknown>>(r.baseParametersJson, {}),
+    batchMatrix: {
+      axes: [],
+      ...safeJsonParse<any>(r.batchMatrixJson, {}),
+    },
   };
 }
 
@@ -179,23 +201,26 @@ export function listAllSubJobsForUser(userId: string, limit = 100): SubJobDetail
 }
 
 export function rowToSubJobDetail(r: typeof subJobs.$inferSelect): SubJobDetail {
-  const lastError = r.lastErrorJson ? JSON.parse(r.lastErrorJson) : undefined;
+  const lastError = r.lastErrorJson ? safeJsonParse<any>(r.lastErrorJson, null) : undefined;
   return {
     id: r.id,
     jobId: r.jobId,
     accountId: r.accountId,
     capabilityId: r.capabilityId as CapabilityId,
     indexInJob: r.indexInJob,
-    axes: JSON.parse(r.axesJson),
+    axes: safeJsonParse<Record<string, unknown>>(r.axesJson, {}),
     status: r.status as SubJobSummary['status'],
     providerTaskId: r.providerTaskId ?? undefined,
     attempts: r.attempts,
-    resultUrls: r.resultUrlsJson ? (JSON.parse(r.resultUrlsJson) as ResultAsset[]) : undefined,
+    resultUrls: r.resultUrlsJson ? safeJsonParse<ResultAsset[]>(r.resultUrlsJson, []) : undefined,
     errorCode: lastError?.code,
     errorMessage: lastError?.message,
     submittedAt: r.submittedAt ?? undefined,
     finishedAt: r.finishedAt ?? undefined,
-    paramsSnapshot: JSON.parse(r.paramsSnapshotJson),
+    paramsSnapshot: {
+      ...defaultParamsSnapshot,
+      ...safeJsonParse<any>(r.paramsSnapshotJson, {}),
+    },
     origPrompt: r.origPrompt ?? undefined,
     actualPrompt: r.actualPrompt ?? undefined,
     pollNextAt: r.pollNextAt ?? undefined,
@@ -250,8 +275,14 @@ export function retrySubJobForUser(
     .where(and(eq(subJobs.id, subJobId), eq(subJobs.userId, userId)))
     .get();
   if (!original) throw new Error('SubJob not found');
-  const snap = JSON.parse(original.paramsSnapshotJson);
-  if (paramOverride) snap.params = { ...snap.params, ...paramOverride };
+  const snap = safeJsonParse<any>(original.paramsSnapshotJson, {});
+  const mergedSnap = {
+    ...defaultParamsSnapshot,
+    ...snap,
+  };
+  if (paramOverride) {
+    mergedSnap.params = { ...mergedSnap.params, ...paramOverride };
+  }
   const newId = nanoid();
   const indexInJob =
     db
@@ -268,7 +299,7 @@ export function retrySubJobForUser(
       capabilityId: original.capabilityId,
       indexInJob: (indexInJob ?? 0) + 1,
       axesJson: original.axesJson,
-      paramsSnapshotJson: JSON.stringify(snap),
+      paramsSnapshotJson: JSON.stringify(mergedSnap),
       status: 'PENDING_SUBMIT',
       originSubJobId: subJobId,
     })

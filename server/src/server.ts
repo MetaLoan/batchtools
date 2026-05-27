@@ -16,9 +16,11 @@ import { uploadRoutes } from './routes/uploads.js';
 import { streamRoutes } from './routes/stream.js';
 import { editorRoutes } from './routes/editor.js';
 import { strategyRoutes } from './routes/strategies.js';
+import { copycatRoutes } from './routes/copycat.js';
 import { startScheduler } from './services/scheduler.js';
 import { startPoller } from './services/poller.js';
 import { startCleanup } from './services/cleanup.js';
+import { startCopycatDaemon } from './services/copycat-service.js';
 import { rebuildConcurrencyFromDb } from './services/concurrency.js';
 import { bootstrapInitialAdmin } from './bootstrap.js';
 import { loadAccountsFromConfig } from './bootstrap-accounts.js';
@@ -51,6 +53,7 @@ async function main() {
   await app.register(streamRoutes);
   await app.register(editorRoutes);
   await app.register(strategyRoutes);
+  await app.register(copycatRoutes);
 
   app.get('/healthz', async () => ({ ok: true }));
 
@@ -73,6 +76,7 @@ async function main() {
   startScheduler();
   startPoller();
   startCleanup();
+  startCopycatDaemon();
 
   await app.listen({ port: config.port, host: config.host });
   app.log.info(`Server listening on ${config.host}:${config.port}`);

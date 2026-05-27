@@ -140,6 +140,68 @@ export function runMigrations() {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS strategies_user_idx ON strategies(user_id);
+
+    CREATE TABLE IF NOT EXISTS tk_bloggers (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      homepage_url TEXT NOT NULL,
+      handle TEXT NOT NULL,
+      nickname TEXT,
+      avatar_url TEXT,
+      signature TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at INTEGER NOT NULL,
+      last_crawled_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS tk_bloggers_user_idx ON tk_bloggers(user_id);
+
+    CREATE TABLE IF NOT EXISTS crawled_videos (
+      id TEXT PRIMARY KEY,
+      blogger_id TEXT NOT NULL,
+      unique_id TEXT NOT NULL,
+      title TEXT,
+      video_url TEXT NOT NULL,
+      download_url TEXT NOT NULL,
+      cover_url TEXT,
+      duration_sec REAL NOT NULL,
+      publish_time INTEGER NOT NULL,
+      play_count INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS crawled_videos_blogger_idx ON crawled_videos(blogger_id);
+    CREATE INDEX IF NOT EXISTS crawled_videos_unique_idx ON crawled_videos(unique_id);
+
+    CREATE TABLE IF NOT EXISTS copycat_strategies (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      blogger_ids_json TEXT NOT NULL,
+      filter_min_duration REAL,
+      filter_max_duration REAL,
+      filter_publish_after INTEGER,
+      filter_min_play_count INTEGER,
+      filter_deduplicate INTEGER NOT NULL DEFAULT 1,
+      ref_image_url TEXT NOT NULL,
+      persona TEXT NOT NULL,
+      style_prompt TEXT NOT NULL,
+      output_count INTEGER NOT NULL DEFAULT 1,
+      reuse_audio INTEGER NOT NULL DEFAULT 1,
+      crawl_interval_hours INTEGER NOT NULL DEFAULT 6,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at INTEGER NOT NULL,
+      last_executed_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS copycat_strategies_user_idx ON copycat_strategies(user_id);
+
+    CREATE TABLE IF NOT EXISTS copycat_processed_videos (
+      strategy_id TEXT NOT NULL,
+      video_unique_id TEXT NOT NULL,
+      job_id TEXT,
+      processed_at INTEGER NOT NULL,
+      PRIMARY KEY (strategy_id, video_unique_id)
+    );
   `);
 
   // Backward-compatible migrations for existing deployments:
@@ -177,5 +239,14 @@ export function runMigrations() {
   }
   if (!hasColumn('strategies', 'scene_preference')) {
     sqlite.exec(`ALTER TABLE strategies ADD COLUMN scene_preference TEXT`);
+  }
+  if (!hasColumn('tk_bloggers', 'signature')) {
+    sqlite.exec(`ALTER TABLE tk_bloggers ADD COLUMN signature TEXT`);
+  }
+  if (!hasColumn('crawled_videos', 'cover_url')) {
+    sqlite.exec(`ALTER TABLE crawled_videos ADD COLUMN cover_url TEXT`);
+  }
+  if (!hasColumn('tk_bloggers', 'crawl_error')) {
+    sqlite.exec(`ALTER TABLE tk_bloggers ADD COLUMN crawl_error TEXT`);
   }
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Modal, Drawer, Input, Select, Button, Upload, Slider, Checkbox, Tabs } from 'antd';
+import { App as AntApp, Modal, Drawer, Input, InputNumber, Select, Button, Upload, Slider, Checkbox, Tabs } from 'antd';
 import { Plus, Trash2, Sparkles, Image as ImageIcon, Film, Play, Pause, Loader2, Copy, Music, Volume2, CheckSquare, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../lib/api';
@@ -78,6 +78,9 @@ export default function StrategiesPage() {
   const [activeStrategy, setActiveStrategy] = useState<any | null>(null);
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [generateCount, setGenerateCount] = useState(3);
+  const [shouldAppend, setShouldAppend] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const cancelGenerateRef = useRef(false);
   
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -295,6 +298,8 @@ export default function StrategiesPage() {
     setActiveStrategy(strategy);
     setGeneratedScripts([]);
     setGenerateCount(3);
+    setShouldAppend(false);
+    setBatchProgress(null);
     setIsGenerateOpen(true);
   };
 
@@ -302,16 +307,45 @@ export default function StrategiesPage() {
   const handleGenerate = async () => {
     if (!activeStrategy) return;
     setIsGenerating(true);
-    setGeneratedScripts([]);
+    cancelGenerateRef.current = false;
+    if (!shouldAppend) {
+      setGeneratedScripts([]);
+    }
+    setBatchProgress(null);
     try {
-      const res = await api.generateStrategyScripts(activeStrategy.id, generateCount);
-      const scripts = res.scripts.map((s) => ({ ...s, selected: true }));
-      setGeneratedScripts(scripts);
-      message.success(`成功生成 ${scripts.length} 个分镜剧本！`);
+      const batchSize = 10;
+      const totalCount = generateCount;
+      const totalBatches = Math.ceil(totalCount / batchSize);
+      let allNewScripts: any[] = [];
+
+      for (let i = 0; i < totalBatches; i++) {
+        if (cancelGenerateRef.current) {
+          message.info('已停止生成，保留已生成的分镜');
+          break;
+        }
+        setBatchProgress({ current: i + 1, total: totalBatches });
+        const currentBatchSize = Math.min(batchSize, totalCount - i * batchSize);
+        const res = await api.generateStrategyScripts(activeStrategy.id, currentBatchSize);
+        const scripts = res.scripts.map((s: any) => ({ ...s, selected: true }));
+        allNewScripts = [...allNewScripts, ...scripts];
+
+        // Append incrementally so the user can see progress
+        setGeneratedScripts((prev) => {
+          if (!shouldAppend && i === 0) {
+            return scripts;
+          }
+          return [...prev, ...scripts];
+        });
+      }
+      if (!cancelGenerateRef.current) {
+        message.success(`成功生成 ${allNewScripts.length} 个分镜剧本！`);
+      }
     } catch (err: any) {
       message.error(`Grok 生成失败: ${err.message || 'LLM 调用出错'}`);
     } finally {
       setIsGenerating(false);
+      setBatchProgress(null);
+      cancelGenerateRef.current = false;
     }
   };
 
@@ -859,35 +893,59 @@ export default function StrategiesPage() {
                 </span>
               </div>
               
-              <div className="flex items-center gap-6">
-                <div className="flex-1">
-                  <div className="flex justify-between text-xs mb-1.5 text-zinc-400">
-                    <span>生成分镜场景数量</span>
-                    <span className="font-bold text-brand-400">{generateCount} 个分镜</span>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-6">
+                  <div className="flex-1">
+                    <div className="flex justify-between text-xs mb-1.5 text-zinc-400">
+                      <span>生成分镜场景数量 (自定义最多支持 1000)</span>
+                      <span className="font-bold text-brand-400">{generateCount} 个分镜</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Slider
+                        min={1}
+                        max={100}
+                        value={generateCount > 100 ? 100 : generateCount}
+                        onChange={(val) => setGenerateCount(val)}
+                        disabled={isGenerating}
+                        className="flex-1"
+                      />
+                      <InputNumber
+                        min={1}
+                        max={1000}
+                        value={generateCount}
+                        onChange={(val) => setGenerateCount(val || 1)}
+                        disabled={isGenerating}
+                        className="w-24 bg-zinc-950 border-zinc-800 text-zinc-200"
+                      />
+                    </div>
                   </div>
-                  <Slider
-                    min={1}
-                    max={10}
-                    value={generateCount}
-                    onChange={setGenerateCount}
-                    disabled={isGenerating}
-                  />
+                  <Button
+                    type="primary"
+                    danger={isGenerating}
+                    icon={isGenerating ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                    onClick={isGenerating ? () => { cancelGenerateRef.current = true; } : handleGenerate}
+                    disabled={isExecuting}
+                    className={`${isGenerating ? '' : 'bg-brand-600 hover:bg-brand-500 border-none'} h-10 px-5 text-white font-medium shadow-md shadow-brand-500/10 shrink-0`}
+                  >
+                    {isGenerating ? '停止生成' : 'Grok 智能生成剧本'}
+                  </Button>
                 </div>
-                <Button
-                  type="primary"
-                  icon={isGenerating ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                  onClick={handleGenerate}
-                  disabled={isGenerating || isExecuting}
-                  className="bg-brand-600 hover:bg-brand-500 border-none h-10 px-5 text-white font-medium shadow-md shadow-brand-500/10 shrink-0"
-                >
-                  {isGenerating ? 'AI 剧本生成中...' : 'Grok 智能生成剧本'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={shouldAppend}
+                    onChange={(e) => setShouldAppend(e.target.checked)}
+                    disabled={isGenerating}
+                    className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors"
+                  >
+                    保留并追加到现有列表（不覆盖已有分镜，支持无限追加）
+                  </Checkbox>
+                </div>
               </div>
             </div>
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto mb-4 pr-1 min-h-0">
-              {isGenerating ? (
+              {isGenerating && generatedScripts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <div className="relative mb-6 flex h-16 w-16 items-center justify-center">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-500/20 opacity-75"></span>
@@ -895,12 +953,15 @@ export default function StrategiesPage() {
                       <Sparkles size={20} className="animate-pulse" />
                     </div>
                   </div>
-                  <h4 className="text-base font-semibold text-zinc-200">Grok 大模型正在全力创作</h4>
+                  <h4 className="text-base font-semibold text-zinc-200">
+                    Grok 大模型正在全力创作
+                    {batchProgress && ` (${batchProgress.current}/${batchProgress.total} 批)`}
+                  </h4>
                   <p className="mt-2 text-xs text-brand-400 max-w-sm font-mono h-8 flex items-center justify-center text-center">
                     {genStepMsg}
                   </p>
                   <p className="text-[11px] text-zinc-500 mt-2">
-                    (这需要大约 10-15 秒的时间，请稍候...)
+                    (这需要大约 {batchProgress ? batchProgress.total * 12 : 15} 秒的时间，请稍候...)
                   </p>
                 </div>
               ) : generatedScripts.length === 0 ? (
@@ -917,7 +978,7 @@ export default function StrategiesPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between text-xs text-zinc-500 px-1">
                     <span>
-                      生成完成！共 {generatedScripts.length} 个分镜剧本（已选中{' '}
+                      共 {generatedScripts.length} 个分镜剧本（已选中{' '}
                       {generatedScripts.filter((s) => s.selected).length} 个）
                     </span>
                     <div className="flex gap-2">
@@ -993,6 +1054,15 @@ export default function StrategiesPage() {
                       </motion.div>
                     ))}
                   </AnimatePresence>
+
+                  {isGenerating && (
+                    <div className="flex items-center justify-center gap-2 py-4 rounded-xl border border-zinc-800 bg-zinc-900/10 text-xs text-brand-400 animate-pulse mt-4">
+                      <Loader2 className="animate-spin text-brand-400" size={14} />
+                      <span>
+                        Grok 正在全力创作新一分镜 {batchProgress ? `(${batchProgress.current}/${batchProgress.total} 批)` : ''}...
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

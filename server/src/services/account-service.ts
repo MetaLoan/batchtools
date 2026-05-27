@@ -1,10 +1,21 @@
 import { eq } from 'drizzle-orm';
 import { request } from 'undici';
-import type { AccountSummary, AccountPolicy } from '@bvp/shared';
+import { type AccountSummary, type AccountPolicy, DEFAULT_ACCOUNT_POLICY } from '@bvp/shared';
 import { db } from '../db/index.js';
 import { accounts } from '../db/schema.js';
 import { decryptSecret } from '../lib/crypto.js';
 import { buildDashScopeUrl } from '../providers/dashscope/base-client.js';
+
+function safeJsonParse<T>(jsonStr: string | null | undefined, fallback: T): T {
+  if (!jsonStr || jsonStr.trim() === '') return fallback;
+  try {
+    const parsed = JSON.parse(jsonStr);
+    return parsed === null ? fallback : (parsed as T);
+  } catch (e) {
+    console.error(`[safeJsonParse] Failed to parse JSON: "${jsonStr}"`, e);
+    return fallback;
+  }
+}
 
 function rowToSummary(r: typeof accounts.$inferSelect): AccountSummary {
   return {
@@ -13,7 +24,7 @@ function rowToSummary(r: typeof accounts.$inferSelect): AccountSummary {
     endpoint: r.endpoint,
     queryEndpoint: r.queryEndpoint ?? undefined,
     disableDataInspection: !!r.disableDataInspection,
-    policy: JSON.parse(r.policyJson) as AccountPolicy,
+    policy: safeJsonParse<AccountPolicy>(r.policyJson, DEFAULT_ACCOUNT_POLICY),
     createdAt: r.createdAt,
   };
 }

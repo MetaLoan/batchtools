@@ -12,6 +12,7 @@ import TaskDetailPage from './pages/TaskDetailPage';
 import AssetsPage from './pages/AssetsPage';
 import EditorPage from './pages/EditorPage';
 import StrategiesPage from './pages/StrategiesPage';
+import CopycatPage from './pages/CopycatPage';
 import SettingsPage from './pages/SettingsPage';
 import { useAppStore } from './lib/store';
 import { useSse } from './lib/sse';
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/editor" element={<EditorPage />} />
         <Route path="/strategies" element={<StrategiesPage />} />
+        <Route path="/copycat" element={<CopycatPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

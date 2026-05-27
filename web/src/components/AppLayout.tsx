@@ -14,6 +14,7 @@ import {
   Scissors,
   LogOut,
   ChevronDown,
+  Copy,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useCapabilities } from '../App';
@@ -142,6 +143,12 @@ export default function AppLayout() {
             label="人设策略自动化"
             active={location.pathname === '/strategies'}
             onClick={() => navigate('/strategies')}
+          />
+          <NavItem
+            icon={<Copy size={16} />}
+            label="TK博主做同款"
+            active={location.pathname === '/copycat'}
+            onClick={() => navigate('/copycat')}
           />
           <NavItem
             icon={<SettingsIcon size={16} />}
@@ -353,6 +360,7 @@ function breadcrumbForPath(pathname: string, capabilities: { id: string; display
   if (pathname.startsWith('/assets')) return '素材库';
   if (pathname.startsWith('/editor')) return '视频剪辑';
   if (pathname.startsWith('/strategies')) return '人设策略自动化';
+  if (pathname.startsWith('/copycat')) return 'TK博主做同款';
   if (pathname.startsWith('/settings')) return '账户设置';
   return '';
 }
