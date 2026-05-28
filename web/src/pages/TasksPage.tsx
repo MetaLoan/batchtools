@@ -12,7 +12,8 @@ import PreviewWithExpiry from '../components/PreviewWithExpiry';
 
 export default function TasksPage() {
   const { message, modal } = AntApp.useApp();
-  const { data: capabilities = [] } = useCapabilities();
+  const { data: capabilitiesData } = useCapabilities();
+  const capabilities = Array.isArray(capabilitiesData) ? capabilitiesData : [];
   const navigate = useNavigate();
   const tasksFilter = useAppStore((s) => s.tasksFilter);
   const setTasksFilter = useAppStore((s) => s.setTasksFilter);
@@ -42,16 +43,18 @@ export default function TasksPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   // Fetch folders list
-  const { data: folders = [], refetch: refetchFolders } = useQuery({
+  const { data: foldersData, refetch: refetchFolders } = useQuery({
     queryKey: ['folders'],
-    queryFn: () => api.listFolders().then((r) => r.folders),
+    queryFn: () => api.listFolders().then((r) => r.folders || []),
   });
+  const folders = Array.isArray(foldersData) ? foldersData : [];
 
-  const { data: jobs = [], isLoading: isJobsLoading, refetch: refetchJobs } = useQuery({
+  const { data: jobsData, isLoading: isJobsLoading, refetch: refetchJobs } = useQuery({
     queryKey: ['jobs', selectedFolderId],
-    queryFn: () => api.listJobs(200, selectedFolderId).then((r) => r.jobs),
+    queryFn: () => api.listJobs(200, selectedFolderId).then((r) => r.jobs || []),
     refetchInterval: 8000,
   });
+  const jobs = Array.isArray(jobsData) ? jobsData : [];
 
   // Query all sub-jobs (completed outputs) for media view
   const { data: subJobsData, isLoading: isSubJobsLoading } = useQuery({
@@ -61,7 +64,7 @@ export default function TasksPage() {
     refetchInterval: 8000,
   });
 
-  const subJobs = subJobsData?.subJobs || [];
+  const subJobs = Array.isArray(subJobsData?.subJobs) ? subJobsData.subJobs : [];
 
   useEffect(() => {
     if (jobs.length > 0) {

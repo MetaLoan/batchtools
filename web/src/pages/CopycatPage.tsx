@@ -72,9 +72,9 @@ export default function CopycatPage() {
 
   const { data: folderRes, refetch: refetchFolders } = useQuery({
     queryKey: ['folders'],
-    queryFn: () => api.listFolders(),
+    queryFn: () => api.listFolders().then((r) => r || { folders: [] }),
   });
-  const folders = folderRes?.folders || [];
+  const folders = Array.isArray(folderRes?.folders) ? folderRes.folders : [];
 
   const { data: bloggers = [], isLoading: isBloggersLoading } = useQuery<Blogger[]>({
     queryKey: ['tk_bloggers'],

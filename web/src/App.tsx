@@ -64,7 +64,7 @@ export default function App() {
 export function useCapabilities() {
   return useQuery({
     queryKey: ['capabilities'],
-    queryFn: () => api.listCapabilities().then((r) => r.capabilities),
+    queryFn: () => api.listCapabilities().then((r) => r.capabilities || []),
     staleTime: 5 * 60_000,
   });
 }

@@ -11,16 +11,18 @@ export default function AssetsPage() {
   const assetsActiveTab = useAppStore((s) => s.assetsActiveTab);
   const setAssetsActiveTab = useAppStore((s) => s.setAssetsActiveTab);
 
-  const { data: uploads = [] } = useQuery({
+  const { data: uploadsData } = useQuery({
     queryKey: ['uploads'],
-    queryFn: () => api.listUploads().then((r) => r.uploads),
+    queryFn: () => api.listUploads().then((r) => r.uploads || []),
     refetchInterval: 10_000,
   });
+  const uploads = Array.isArray(uploadsData) ? uploadsData : [];
 
-  const { data: jobs = [] } = useQuery({
+  const { data: jobsData } = useQuery({
     queryKey: ['jobs'],
-    queryFn: () => api.listJobs(200).then((r) => r.jobs),
+    queryFn: () => api.listJobs(200).then((r) => r.jobs || []),
   });
+  const jobs = Array.isArray(jobsData) ? jobsData : [];
 
   function copy(text: string) {
     navigator.clipboard.writeText(text).then(() => message.success('已复制 URL'));

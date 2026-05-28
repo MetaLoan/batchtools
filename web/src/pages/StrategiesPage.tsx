@@ -59,9 +59,9 @@ export default function StrategiesPage() {
 
   const { data: folderRes, refetch: refetchFolders } = useQuery({
     queryKey: ['folders'],
-    queryFn: () => api.listFolders(),
+    queryFn: () => api.listFolders().then((r) => r || { folders: [] }),
   });
-  const folders = folderRes?.folders || [];
+  const folders = Array.isArray(folderRes?.folders) ? folderRes.folders : [];
 
   const currentAccountName = accounts.find((a) => a.id === currentAccountId)?.name || '未选择账户';
   
