@@ -112,6 +112,11 @@ export const api = {
     http<{ canceled: number }>(`/v1/jobs/${jobId}/cancel`, { method: 'POST', body: '{}' }),
   deleteJob: (jobId: string) =>
     http<{ ok: boolean }>(`/v1/jobs/${jobId}`, { method: 'DELETE' }),
+  batchDeleteJobs: (jobIds: string[]) =>
+    http<{ ok: boolean }>('/v1/jobs/batch-delete', {
+      method: 'POST',
+      body: JSON.stringify({ jobIds }),
+    }),
   retrySubJob: (subJobId: string, paramOverride?: Record<string, unknown>) =>
     http<{ subJobId: string }>(`/v1/sub_jobs/${subJobId}/retry`, {
       method: 'POST',

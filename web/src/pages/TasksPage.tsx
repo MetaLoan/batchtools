@@ -119,6 +119,27 @@ export default function TasksPage() {
     });
   }
 
+  async function handleBatchDelete() {
+    if (selectedRowKeys.length === 0) return;
+    modal.confirm({
+      title: '确认批量删除任务记录',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 条任务记录吗？此操作将同时删除其下所有的子任务记录，且不可恢复。`,
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await api.batchDeleteJobs(selectedRowKeys as string[]);
+          message.success('批量删除任务记录成功');
+          setSelectedRowKeys([]);
+          refetchJobs();
+        } catch (err) {
+          message.error('批量删除失败: ' + (err as Error).message);
+        }
+      }
+    });
+  }
+
   async function handleCreateFolder() {
     if (!newFolderName.trim()) {
       message.error('文件夹名称不能为空');
@@ -451,6 +472,15 @@ export default function TasksPage() {
                 onClick={handleBatchDownload}
               >
                 批量下载视频
+              </Button>
+              <Button
+                size="small"
+                danger
+                type="primary"
+                icon={<Trash2 size={14} />}
+                onClick={handleBatchDelete}
+              >
+                批量删除
               </Button>
               <Button
                 size="small"

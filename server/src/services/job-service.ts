@@ -335,6 +335,18 @@ export function deleteJobForUser(userId: string, jobId: string): void {
   });
 }
 
+export function batchDeleteJobsForUser(userId: string, jobIds: string[]): void {
+  if (jobIds.length === 0) return;
+  db.transaction((tx) => {
+    tx.delete(subJobs)
+      .where(and(inArray(subJobs.jobId, jobIds), eq(subJobs.userId, userId)))
+      .run();
+    tx.delete(jobs)
+      .where(and(inArray(jobs.id, jobIds), eq(jobs.userId, userId)))
+      .run();
+  });
+}
+
 export function retrySubJobForUser(
   userId: string,
   subJobId: string,

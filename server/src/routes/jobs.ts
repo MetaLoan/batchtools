@@ -5,6 +5,7 @@ import { hasCapability } from '../providers/index.js';
 import {
   cancelJobForUser,
   deleteJobForUser,
+  batchDeleteJobsForUser,
   createJob,
   getJobForUser,
   listJobsForUser,
@@ -160,6 +161,16 @@ export async function jobRoutes(app: FastifyInstance) {
   app.delete('/v1/jobs/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     deleteJobForUser(req.currentUser!.id, id);
+    reply.send({ ok: true });
+  });
+
+  app.post('/v1/jobs/batch-delete', async (req, reply) => {
+    const body = req.body as { jobIds: string[] };
+    if (!body || !Array.isArray(body.jobIds)) {
+      reply.code(400).send({ error: 'jobIds must be an array of strings' });
+      return;
+    }
+    batchDeleteJobsForUser(req.currentUser!.id, body.jobIds);
     reply.send({ ok: true });
   });
 
