@@ -48,8 +48,8 @@ export default function QueuePage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <Link to={`/tasks/${j.id}`} className="font-mono text-sm text-brand-300 hover:underline">
-                        {j.id.slice(0, 8)}
+                      <Link to={`/tasks/${j.id}`} className="font-mono text-sm text-brand-300 hover:underline truncate max-w-[250px] inline-block align-bottom" title={j.id}>
+                        {j.id}
                       </Link>
                       <StatusBadge status={j.status} kind="job" />
                       <span className="text-xs text-zinc-500">{j.capabilityId}</span>

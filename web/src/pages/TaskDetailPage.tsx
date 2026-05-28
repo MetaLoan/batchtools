@@ -68,7 +68,7 @@ export default function TaskDetailPage() {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="font-mono text-xl">{job.id.slice(0, 12)}</h1>
+            <h1 className="font-mono text-xl break-all">{job.id}</h1>
             <StatusBadge status={job.status} kind="job" />
           </div>
           <div className="mt-1 text-sm text-zinc-500">

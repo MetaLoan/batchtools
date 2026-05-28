@@ -16,9 +16,29 @@ import {
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { saveUpload } from './upload-service.js';
 import { polishEditPrompt, analyzeVideoKeyframes } from './llm-service.js';
-import { createJob } from './job-service.js';
+import { createJob, createFolder } from './job-service.js';
+import { broadcast } from '../lib/sse.js';
 import { crawlAllActiveBloggers, getYtDlpCookieArgs } from './tk-crawler.js';
 import type { MediaInput } from '@bvp/shared';
+
+function formatDate(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function updateStrategyLog(strategyId: string, userId: string, logText: string) {
+  db.update(copycatStrategies)
+    .set({ lastRunLog: logText })
+    .where(eq(copycatStrategies.id, strategyId))
+    .run();
+  broadcast({
+    type: 'copycat_strategy.log_updated',
+    userId,
+    payload: { strategyId, logText },
+    ts: Date.now(),
+  });
+}
 
 /**
  * Extracts 3 keyframes evenly from a video file, uploads them, and returns their public URLs.
@@ -87,7 +107,8 @@ export async function extractKeyframes(downloadUrl: string, duration: number, us
  */
 export async function processVideoForStrategy(
   strategy: typeof copycatStrategies.$inferSelect,
-  video: typeof crawledVideos.$inferSelect
+  video: typeof crawledVideos.$inferSelect,
+  folderId: string | null = null
 ): Promise<string | null> {
   const userId = strategy.userId;
   console.log(`[copycat-service] Strategy ${strategy.id} (${strategy.name}) processing video ${video.uniqueId} ("${video.title}")`);
@@ -194,10 +215,12 @@ export async function processVideoForStrategy(
         baseNegativePrompt: '',
         baseMedia,
         baseParameters: {
-          'parameters.duration': 10,
+          'parameters.duration': 0,
           ...(strategy.reuseAudio ? { 'extra.audioUrl': downloadUrl } : {}),
         },
         batchMatrix,
+        folderId,
+        jobIdPrefix: `同款策略-${strategy.name}`,
       });
 
       return job.jobId;
@@ -242,6 +265,8 @@ export async function processVideoForStrategy(
           ...(strategy.reuseAudio ? { 'extra.audioUrl': downloadUrl } : {}),
         },
         batchMatrix,
+        folderId,
+        jobIdPrefix: `同款策略-${strategy.name}`,
       });
 
       return job.jobId;
@@ -288,6 +313,9 @@ export async function checkAndRunCopycatStrategies(
 
     if (bloggerIds.length === 0) continue;
 
+    // 1. Log start
+    updateStrategyLog(strat.id, userId, '正在运行策略');
+
     // Get all videos for these bloggers
     const query = db
       .select()
@@ -325,8 +353,34 @@ export async function checkAndRunCopycatStrategies(
 
     console.log(`[copycat-service] Strategy ${strat.id} found ${filteredVideos.length} new matching videos to process`);
 
-    for (const vid of filteredVideos) {
-      const jobId = await processVideoForStrategy(strat, vid);
+    const totalMatching = filteredVideos.length;
+    // 2. Log detection count
+    updateStrategyLog(strat.id, userId, `正在运行策略-检测到${totalMatching}条符合要求的原视频视频`);
+
+    // Determine folder ID for this strategy execution
+    let runFolderId: string | null = null;
+    if (strat.autoCreateFolder === 1 && totalMatching > 0) {
+      const runTimeStr = formatDate(now);
+      const folderName = `${strat.name} ${runTimeStr}`;
+      try {
+        const folder = createFolder(userId, folderName);
+        runFolderId = folder.id;
+      } catch (err: any) {
+        console.error(`[copycat-service] Failed to auto-create folder: ${err.message}`);
+      }
+    } else if (strat.destFolderId) {
+      runFolderId = strat.destFolderId;
+    }
+
+    for (const [idx, vid] of filteredVideos.entries()) {
+      // 3. Log creating progress
+      updateStrategyLog(
+        strat.id,
+        userId,
+        `正在运行策略-检测到${totalMatching}条符合要求的原视频视频-正在创建${idx + 1}/${totalMatching}条视频任务`
+      );
+
+      const jobId = await processVideoForStrategy(strat, vid, runFolderId);
       
       // Save processing record (using upsert to avoid UNIQUE constraint violation on re-runs)
       db.insert(copycatProcessedVideos)
@@ -347,6 +401,13 @@ export async function checkAndRunCopycatStrategies(
 
       processedCount++;
     }
+
+    // 4. Log completion
+    updateStrategyLog(
+      strat.id,
+      userId,
+      `正在运行策略-检测到${totalMatching}条符合要求的原视频视频-视频任务推送完毕-请检查任务详情`
+    );
 
     // Update last executed time
     db.update(copycatStrategies)

@@ -99,7 +99,7 @@ function OutputsTab({ jobs }: { jobs: { id: string; capabilityId: string; create
           className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 hover:border-brand-500"
         >
           <div className="min-w-0 flex-1">
-            <span className="font-mono text-xs text-brand-300">{j.id.slice(0, 8)}</span>
+            <span className="font-mono text-xs text-brand-300 truncate inline-block max-w-[280px]" title={j.id}>{j.id}</span>
             <span className="ml-3 text-xs text-zinc-500">
               {capabilities.find((c) => c.id === j.capabilityId)?.shortName ?? j.capabilityId}
             </span>

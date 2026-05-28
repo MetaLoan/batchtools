@@ -5,6 +5,7 @@ import { db } from '../db/index.js';
 import { uploads } from '../db/schema.js';
 import { execSync } from 'node:child_process';
 import os from 'node:os';
+import { request } from 'undici';
 
 let s3Client: S3Client | null = null;
 function getS3Client() {
@@ -249,3 +250,49 @@ export function deleteExpiredUploads(): number {
   }
   return count;
 }
+
+export async function resolveUrlToStream(
+  urlStr: string,
+  userId: string
+): Promise<{ stream: any; filename: string }> {
+  try {
+    const parsed = new URL(urlStr);
+    const pathParts = parsed.pathname.split('/');
+    // e.g. path is /uploads/:userId/:filename
+    const uploadsIdx = pathParts.indexOf('uploads');
+    if (uploadsIdx !== -1 && pathParts[uploadsIdx + 1] === userId) {
+      const filename = pathParts[uploadsIdx + 2];
+      const uploadId = filename.split('.')[0];
+      const details = getUploadDetails(userId, uploadId);
+      if (details && fs.existsSync(details.storagePath)) {
+        return {
+          stream: fs.createReadStream(details.storagePath),
+          filename,
+        };
+      }
+    }
+  } catch (e) {
+    // URL parse error or key mismatch, fallback to direct fetch
+  }
+
+  // Fallback to fetch
+  const res = await request(urlStr, { method: 'GET' });
+  if (res.statusCode < 200 || res.statusCode >= 300) {
+    throw new Error(`Failed to fetch remote asset from ${urlStr}: HTTP ${res.statusCode}`);
+  }
+
+  let filename = 'video.mp4';
+  try {
+    const parsed = new URL(urlStr);
+    const base = path.basename(parsed.pathname);
+    if (base && base.includes('.')) {
+      filename = base;
+    }
+  } catch (e) {}
+
+  return {
+    stream: res.body,
+    filename,
+  };
+}
+

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { App as AntApp, Modal, Drawer, Input, InputNumber, Select, Button, Upload, Slider, Checkbox, Tabs } from 'antd';
-import { Plus, Trash2, Sparkles, Image as ImageIcon, Film, Play, Pause, Loader2, Copy, Music, Volume2, CheckSquare, Square } from 'lucide-react';
+import { Plus, Trash2, Sparkles, Image as ImageIcon, Film, Play, Pause, Loader2, Copy, Music, Volume2, CheckSquare, Square, Folder } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../lib/api';
 import { useAppStore } from '../lib/store';
@@ -57,6 +57,12 @@ export default function StrategiesPage() {
     queryFn: () => api.listUploads().then((r) => r.uploads),
   });
 
+  const { data: folderRes, refetch: refetchFolders } = useQuery({
+    queryKey: ['folders'],
+    queryFn: () => api.listFolders(),
+  });
+  const folders = folderRes?.folders || [];
+
   const currentAccountName = accounts.find((a) => a.id === currentAccountId)?.name || '未选择账户';
   
   // Filter uploads to only audios for the Music Library
@@ -87,6 +93,8 @@ export default function StrategiesPage() {
   const [genStepMsg, setGenStepMsg] = useState('');
   const [generatedScripts, setGeneratedScripts] = useState<GeneratedScript[]>([]);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [destFolderId, setDestFolderId] = useState<string | null>(null);
+  const [autoCreateFolder, setAutoCreateFolder] = useState(false);
 
   // State: Audio Player in Music Library
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
@@ -300,6 +308,8 @@ export default function StrategiesPage() {
     setGenerateCount(3);
     setShouldAppend(false);
     setBatchProgress(null);
+    setDestFolderId(null);
+    setAutoCreateFolder(false);
     setIsGenerateOpen(true);
   };
 
@@ -367,6 +377,8 @@ export default function StrategiesPage() {
       const res = await api.executeStrategy(activeStrategy.id, {
         accountId: currentAccountId,
         prompts: selectedPrompts.map((p) => ({ title: p.title, prompt: p.prompt })),
+        destFolderId: autoCreateFolder ? null : destFolderId,
+        autoCreateFolder,
       });
       
       message.success(`一键成功下发 ${res.jobIds.length} 个视频生成任务！`);
@@ -942,6 +954,65 @@ export default function StrategiesPage() {
                 </div>
               </div>
             </div>
+
+            {/* Folder Destination Configuration */}
+            {generatedScripts.length > 0 && !isGenerating && (
+              <div className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900/10 p-4 shrink-0 space-y-4 text-left">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                    <Folder size={14} className="text-brand-400" />
+                    <span>📂 任务输出归档文件夹</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                  <Checkbox
+                    checked={autoCreateFolder}
+                    onChange={(e) => {
+                      setAutoCreateFolder(e.target.checked);
+                      if (e.target.checked) {
+                        setDestFolderId(null);
+                      }
+                    }}
+                    className="text-xs text-zinc-300"
+                  >
+                    自动创建独立文件夹（以「策略名称+执行时间」命名）
+                  </Checkbox>
+
+                  {!autoCreateFolder && (
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                      <Select
+                        value={destFolderId || undefined}
+                        onChange={(val) => setDestFolderId(val || null)}
+                        placeholder="选择现有文件夹归档"
+                        className="w-48 bg-zinc-900 text-zinc-100"
+                        allowClear
+                        options={folders.map((f) => ({ label: f.name, value: f.id }))}
+                      />
+                      <Button
+                        icon={<Plus size={14} />}
+                        onClick={() => {
+                          const name = window.prompt('请输入新文件夹名称：');
+                          if (name && name.trim()) {
+                            api.createFolder(name.trim()).then((f) => {
+                              refetchFolders();
+                              setDestFolderId(f.id);
+                              message.success(`已创建并选择文件夹: ${name}`);
+                            }).catch((err) => {
+                              message.error('创建文件夹失败: ' + err.message);
+                            });
+                          }
+                        }}
+                        className="bg-zinc-800 border-zinc-700 text-zinc-200"
+                        size="small"
+                      >
+                        新建
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto mb-4 pr-1 min-h-0">

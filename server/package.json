@@ -17,6 +17,7 @@
     "@fastify/cookie": "^9.4.0",
     "@fastify/multipart": "^8.3.0",
     "@fastify/static": "^7.0.4",
+    "archiver": "^8.0.0",
     "better-sqlite3": "^11.3.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.34.0",
@@ -28,6 +29,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^22.5.5",
     "drizzle-kit": "^0.25.0",

@@ -52,7 +52,7 @@ async function trySubmit(row: typeof subJobs.$inferSelect): Promise<void> {
   }
 
   const inFlight = getInFlight(row.accountId, row.capabilityId as CapabilityId);
-  if (inFlight >= 2) return; // 限制每个独立账户对于每种模型的并发最高为 2，超限则等待
+  if (inFlight >= 50) return; // 限制每个独立账户对于每种模型的并发最高为 50，超限则等待
 
   const accountBucket = getAccountSubmitBucket(row.accountId, account.policy.submitRatePerMin);
   if (!accountBucket.tryTake()) return;

@@ -101,16 +101,37 @@ export const api = {
     baseParameters: Record<string, unknown>;
     batchMatrix: BatchMatrix;
   }) => http<{ jobId: string; total: number }>('/v1/jobs', { method: 'POST', body: JSON.stringify(input) }),
-  listJobs: (limit = 50) => http<{ jobs: JobSummary[] }>(`/v1/jobs?limit=${limit}`),
+  listJobs: (limit = 50, folderId?: string | null) =>
+    http<{ jobs: JobSummary[] }>(
+      `/v1/jobs?limit=${limit}${folderId !== undefined ? `&folderId=${folderId === null ? 'null' : folderId}` : ''}`
+    ),
   listSubJobs: (limit = 100) => http<{ subJobs: SubJobDetail[] }>(`/v1/sub_jobs?limit=${limit}`),
   getJob: (jobId: string) =>
     http<{ job: JobDetail; subJobs: SubJobDetail[] }>(`/v1/jobs/${jobId}`),
   cancelJob: (jobId: string) =>
     http<{ canceled: number }>(`/v1/jobs/${jobId}/cancel`, { method: 'POST', body: '{}' }),
+  deleteJob: (jobId: string) =>
+    http<{ ok: boolean }>(`/v1/jobs/${jobId}`, { method: 'DELETE' }),
   retrySubJob: (subJobId: string, paramOverride?: Record<string, unknown>) =>
     http<{ subJobId: string }>(`/v1/sub_jobs/${subJobId}/retry`, {
       method: 'POST',
       body: JSON.stringify({ paramOverride }),
+    }),
+
+  // Folders
+  listFolders: () =>
+    http<{ folders: Array<{ id: string; name: string; createdAt: number }> }>('/v1/folders'),
+  createFolder: (name: string) =>
+    http<{ id: string; name: string; createdAt: number }>('/v1/folders', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+  deleteFolder: (id: string) =>
+    http<{ ok: boolean }>(`/v1/folders/${id}`, { method: 'DELETE' }),
+  batchMoveJobs: (jobIds: string[], folderId: string | null) =>
+    http<{ ok: boolean }>('/v1/jobs/batch-move', {
+      method: 'POST',
+      body: JSON.stringify({ jobIds, folderId }),
     }),
 
   // Uploads (user-scoped)
@@ -198,7 +219,15 @@ export const api = {
       `/v1/strategies/${id}/generate`,
       { method: 'POST', body: JSON.stringify({ count }) }
     ),
-  executeStrategy: (id: string, input: { accountId: string; prompts: Array<{ title: string; prompt: string }> }) =>
+  executeStrategy: (
+    id: string,
+    input: {
+      accountId: string;
+      prompts: Array<{ title: string; prompt: string }>;
+      destFolderId?: string | null;
+      autoCreateFolder?: boolean;
+    }
+  ) =>
     http<{ ok: boolean; jobIds: string[] }>(`/v1/strategies/${id}/execute`, {
       method: 'POST',
       body: JSON.stringify(input),
@@ -212,7 +241,7 @@ export const api = {
   }),
   deleteTkBlogger: (id: string) => http<{ ok: boolean }>(`/v1/tk_bloggers/${id}`, { method: 'DELETE' }),
   syncTkBlogger: (id: string) => http<{ ok: boolean; crawledCount: number }>(`/v1/tk_bloggers/${id}/sync`, { method: 'POST' }),
-  getTkBloggerVideos: (id: string) => http<{ videos: any[] }>(`/v1/tk_bloggers/${id}/videos`),
+  getTkBloggerVideos: (id: string, limit = 12, offset = 0) => http<{ videos: any[] }>(`/v1/tk_bloggers/${id}/videos?limit=${limit}&offset=${offset}`),
 
   // Crawler Settings
   getCrawlerSettings: () => http<{
@@ -245,12 +274,15 @@ export const api = {
     outputCount?: number;
     reuseAudio?: boolean;
     crawlIntervalHours?: number;
+    destFolderId?: string | null;
+    autoCreateFolder?: boolean;
   }) => http<any>('/v1/copycat_strategies', {
     method: 'POST',
     body: JSON.stringify(input),
   }),
   toggleCopycatStrategy: (id: string) => http<{ ok: boolean; status: string }>(`/v1/copycat_strategies/${id}/toggle`, { method: 'POST' }),
   deleteCopycatStrategy: (id: string) => http<{ ok: boolean }>(`/v1/copycat_strategies/${id}`, { method: 'DELETE' }),
+  copyCopycatStrategy: (id: string) => http<any>(`/v1/copycat_strategies/${id}/copy`, { method: 'POST' }),
   runCopycatStrategy: (id: string) => http<{ ok: boolean; processedCount: number }>(`/v1/copycat_strategies/${id}/run`, { method: 'POST' }),
   getCopycatLogs: (id: string) => http<{ logs: any[] }>(`/v1/copycat_strategies/${id}/logs`),
 };

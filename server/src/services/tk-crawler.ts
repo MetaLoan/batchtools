@@ -36,13 +36,18 @@ function isYtDlpAvailable(): boolean {
  * Crawl the latest videos for a specific blogger.
  * Attempts to use yt-dlp if available, otherwise falls back to simulating a crawl (Mock mode).
  */
-export async function crawlBloggerVideos(bloggerId: string, userId: string): Promise<CrawledVideoInfo[]> {
+export async function crawlBloggerVideos(
+  bloggerId: string,
+  userId: string,
+  playlistStart = 1,
+  playlistEnd = 100
+): Promise<CrawledVideoInfo[]> {
   const blogger = db.select().from(tkBloggers).where(eq(tkBloggers.id, bloggerId)).get();
   if (!blogger) {
     throw new Error(`Blogger not found: ${bloggerId}`);
   }
 
-  console.log(`[tk-crawler] Starting crawl for blogger: ${blogger.handle} (${blogger.homepageUrl})`);
+  console.log(`[tk-crawler] Starting crawl for blogger: ${blogger.handle} (${blogger.homepageUrl}) (Start: ${playlistStart}, End: ${playlistEnd})`);
 
   let fetchedVideos: CrawledVideoInfo[] = [];
   let nickname = blogger.nickname || '';
@@ -54,20 +59,20 @@ export async function crawlBloggerVideos(bloggerId: string, userId: string): Pro
 
   if (useMock) {
     console.log(`[tk-crawler] Using mock crawler for ${blogger.handle}`);
-    fetchedVideos = generateMockVideos(blogger.handle);
+    fetchedVideos = generateMockVideos(blogger.handle, playlistStart, playlistEnd - playlistStart + 1);
     nickname = blogger.handle.slice(1) + ' (Mock)';
     avatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop';
     signature = 'This is a simulated TikTok influencer account description.';
   } else {
     try {
-      const res = await runYtDlpCrawler(blogger.homepageUrl);
+      const res = await runYtDlpCrawler(blogger.homepageUrl, playlistStart, playlistEnd);
       fetchedVideos = res.videos;
       if (res.nickname) nickname = res.nickname;
       if (res.avatarUrl) avatarUrl = res.avatarUrl;
       if (res.signature) signature = res.signature;
     } catch (err: any) {
       console.warn(`[tk-crawler] yt-dlp crawl failed for ${blogger.handle}: ${err.message}. Falling back to mock.`, err);
-      fetchedVideos = generateMockVideos(blogger.handle);
+      fetchedVideos = generateMockVideos(blogger.handle, playlistStart, playlistEnd - playlistStart + 1);
       nickname = blogger.handle.slice(1) + ' (Mock Fallback)';
       avatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop';
       signature = 'Fallback simulated description.';
@@ -192,11 +197,11 @@ interface CrawlResult {
   videos: CrawledVideoInfo[];
 }
 
-async function runYtDlpCrawler(homepageUrl: string): Promise<CrawlResult> {
+async function runYtDlpCrawler(homepageUrl: string, playlistStart = 1, playlistEnd = 100): Promise<CrawlResult> {
   // Call yt-dlp to dump flat playlist metadata in JSON
   const cookieArgs = getYtDlpCookieArgs();
-  const cmd = `yt-dlp ${cookieArgs} --flat-playlist --playlist-end 10 -J "${homepageUrl}"`;
-  const { stdout } = await execPromise(cmd, { maxBuffer: 10 * 1024 * 1024, timeout: 15000 });
+  const cmd = `yt-dlp ${cookieArgs} --flat-playlist --playlist-start ${playlistStart} --playlist-end ${playlistEnd} -J "${homepageUrl}"`;
+  const { stdout } = await execPromise(cmd, { maxBuffer: 30 * 1024 * 1024, timeout: 20000 });
   const data = JSON.parse(stdout);
 
   // Extract blogger profile info
@@ -237,8 +242,7 @@ async function runYtDlpCrawler(homepageUrl: string): Promise<CrawlResult> {
 /**
  * Simulates a crawl list for debugging/testing.
  */
-function generateMockVideos(handle: string): CrawledVideoInfo[] {
-  const randomCount = 4 + Math.floor(Math.random() * 3);
+function generateMockVideos(handle: string, start = 1, count = 20): CrawledVideoInfo[] {
   const infos: CrawledVideoInfo[] = [];
   const cleanHandle = handle.replace(/^@/, '');
   const sampleCovers = [
@@ -248,20 +252,21 @@ function generateMockVideos(handle: string): CrawledVideoInfo[] {
     'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=400&fit=crop',
   ];
 
-  for (let i = 0; i < randomCount; i++) {
-    const videoId = `${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+  for (let i = 0; i < count; i++) {
+    const idx = start + i;
+    const videoId = `mock_vid_${idx}_${Math.floor(100000 + Math.random() * 900000)}`;
     const titles = [
-      `Casual Vlog Day ${Math.floor(Math.random() * 100)} - relaxing in the sun!`,
-      `Elevator outfit check #OOTD`,
-      `Late night stroll down the neon street`,
-      `Baking cookies in a messy kitchen`,
+      `Casual Vlog Day ${idx} - relaxing in the sun!`,
+      `Elevator outfit check #OOTD - Part ${idx}`,
+      `Late night stroll down the neon street - Part ${idx}`,
+      `Baking cookies in a kitchen - Part ${idx}`,
     ];
     infos.push({
       uniqueId: videoId,
       title: titles[i % titles.length],
       videoUrl: `https://www.tiktok.com/@${cleanHandle}/video/${videoId}`,
       durationSec: 12 + Math.floor(Math.random() * 30), // 12s - 42s
-      publishTime: Date.now() - i * 4 * 3600 * 1000, // spaced out
+      publishTime: Date.now() - idx * 4 * 3600 * 1000, // spaced out
       playCount: 1500 + Math.floor(Math.random() * 120000),
       coverUrl: sampleCovers[i % sampleCovers.length],
     });

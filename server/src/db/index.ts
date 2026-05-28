@@ -191,7 +191,10 @@ export function runMigrations() {
       crawl_interval_hours INTEGER NOT NULL DEFAULT 6,
       status TEXT NOT NULL DEFAULT 'active',
       created_at INTEGER NOT NULL,
-      last_executed_at INTEGER
+      last_executed_at INTEGER,
+      dest_folder_id TEXT,
+      auto_create_folder INTEGER NOT NULL DEFAULT 0,
+      last_run_log TEXT
     );
     CREATE INDEX IF NOT EXISTS copycat_strategies_user_idx ON copycat_strategies(user_id);
 
@@ -202,6 +205,14 @@ export function runMigrations() {
       processed_at INTEGER NOT NULL,
       PRIMARY KEY (strategy_id, video_unique_id)
     );
+
+    CREATE TABLE IF NOT EXISTS folders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS folders_user_idx ON folders(user_id);
   `);
 
   // Backward-compatible migrations for existing deployments:
@@ -249,4 +260,17 @@ export function runMigrations() {
   if (!hasColumn('tk_bloggers', 'crawl_error')) {
     sqlite.exec(`ALTER TABLE tk_bloggers ADD COLUMN crawl_error TEXT`);
   }
+  if (!hasColumn('jobs', 'folder_id')) {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN folder_id TEXT`);
+  }
+  if (!hasColumn('copycat_strategies', 'dest_folder_id')) {
+    sqlite.exec(`ALTER TABLE copycat_strategies ADD COLUMN dest_folder_id TEXT`);
+  }
+  if (!hasColumn('copycat_strategies', 'auto_create_folder')) {
+    sqlite.exec(`ALTER TABLE copycat_strategies ADD COLUMN auto_create_folder INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!hasColumn('copycat_strategies', 'last_run_log')) {
+    sqlite.exec(`ALTER TABLE copycat_strategies ADD COLUMN last_run_log TEXT`);
+  }
 }
+

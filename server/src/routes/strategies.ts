@@ -5,7 +5,7 @@ import { requireAuth } from '../lib/auth.js';
 import { db } from '../db/index.js';
 import { strategies, uploads } from '../db/schema.js';
 import { generateScripts } from '../services/llm-service.js';
-import { createJob } from '../services/job-service.js';
+import { createJob, createFolder } from '../services/job-service.js';
 import { accountExists } from '../services/account-service.js';
 
 interface CreateStrategyBody {
@@ -178,10 +178,14 @@ export async function strategyRoutes(app: FastifyInstance) {
     }
   });
 
-  // 5. 一键批量下发视频任务到队列中
   app.post('/v1/strategies/:id/execute', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const { accountId, prompts } = req.body as ExecuteBody;
+    const { accountId, prompts, destFolderId, autoCreateFolder } = req.body as {
+      accountId: string;
+      prompts: Array<{ title: string; prompt: string }>;
+      destFolderId?: string | null;
+      autoCreateFolder?: boolean;
+    };
 
     if (!accountId || !prompts || prompts.length === 0) {
       reply.code(400).send({ error: 'Missing accountId or prompts list' });
@@ -206,6 +210,23 @@ export async function strategyRoutes(app: FastifyInstance) {
 
     try {
       app.log.info(`[strategy] Bulk executing ${prompts.length} video generation jobs for strategy ${id}`);
+
+      let runFolderId: string | null = null;
+      if (autoCreateFolder && prompts.length > 0) {
+        const now = Date.now();
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const d = new Date(now);
+        const runTimeStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        const folderName = `${strategy.name} ${runTimeStr}`;
+        try {
+          const folder = createFolder(req.currentUser!.id, folderName);
+          runFolderId = folder.id;
+        } catch (err: any) {
+          app.log.error(`[strategy] Failed to auto-create folder:`, err);
+        }
+      } else if (destFolderId) {
+        runFolderId = destFolderId;
+      }
       
       // Query user audios once if random mode is enabled
       let userAudios: any[] = [];
@@ -258,6 +279,8 @@ export async function strategyRoutes(app: FastifyInstance) {
             'extra.audioUrl': randomAudioUrl || '',
           },
           batchMatrix: { axes: [] },
+          folderId: runFolderId,
+          jobIdPrefix: `人设策略自动化-${strategy.name}`,
         });
         jobIds.push(job.jobId);
       }

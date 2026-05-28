@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray, isNull } from 'drizzle-orm';
 import type {
   BatchMatrix,
   MediaInput,
@@ -11,7 +11,7 @@ import type {
   ResultAsset,
 } from '@bvp/shared';
 import { db } from '../db/index.js';
-import { jobs, subJobs } from '../db/schema.js';
+import { jobs, subJobs, folders } from '../db/schema.js';
 import { getProvider } from '../providers/index.js';
 import { expandMatrix } from './batch-expander.js';
 import { broadcast } from '../lib/sse.js';
@@ -27,6 +27,20 @@ export interface CreateJobInput {
   baseParameters: Record<string, unknown>;
   batchMatrix: BatchMatrix;
   priority?: number;
+  folderId?: string | null;
+  jobIdPrefix?: string;
+}
+
+function sanitizeJobPrefix(prefix: string): string {
+  return prefix
+    .trim()
+    .replace(/\s+([\(（])/g, '$1')
+    .replace(/([\)）])\s+/g, '$1')
+    .replace(/[\s\/\\:;\*\?"<>\|]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .replace(/-+([\(（])/g, '$1')
+    .replace(/([\)）])-+/g, '$1');
 }
 
 export function createJob(input: CreateJobInput): { jobId: string; total: number } {
@@ -41,7 +55,21 @@ export function createJob(input: CreateJobInput): { jobId: string; total: number
     maxFanout: cap.batch.platformMaxFanout,
   });
 
-  const jobId = nanoid();
+  let prefix = '';
+  if (input.jobIdPrefix) {
+    prefix = sanitizeJobPrefix(input.jobIdPrefix);
+  } else {
+    let name = cap.shortName || '任务';
+    if (input.modelVariant.includes('2.6') && !name.includes('2.6')) {
+      name += '(2.6)';
+    } else if (input.modelVariant.includes('2.7') && !name.includes('2.7')) {
+      name += '(2.7)';
+    }
+    prefix = sanitizeJobPrefix(name);
+  }
+  const lastChar = prefix.slice(-1);
+  const separator = (lastChar === ')' || lastChar === '）') ? '' : '-';
+  const jobId = `${prefix}${separator}${nanoid(8)}`;
   const now = Date.now();
 
   db.transaction((tx) => {
@@ -61,6 +89,7 @@ export function createJob(input: CreateJobInput): { jobId: string; total: number
         status: drafts.length === 0 ? 'SUCCEEDED' : 'QUEUED',
         priority: input.priority ?? 50,
         createdAt: now,
+        folderId: input.folderId ?? null,
       })
       .run();
 
@@ -116,6 +145,28 @@ const defaultParamsSnapshot = {
   model: '',
 };
 
+function getJobPreviewUrl(jobId: string): string | null {
+  const sub = db
+    .select({ resultUrlsJson: subJobs.resultUrlsJson })
+    .from(subJobs)
+    .where(
+      and(
+        eq(subJobs.jobId, jobId),
+        eq(subJobs.status, 'SUCCEEDED')
+      )
+    )
+    .limit(1)
+    .get();
+  if (!sub || !sub.resultUrlsJson) return null;
+  try {
+    const assets = JSON.parse(sub.resultUrlsJson);
+    if (Array.isArray(assets) && assets.length > 0) {
+      return assets[0].url || null;
+    }
+  } catch (e) {}
+  return null;
+}
+
 function rowToJobSummary(r: typeof jobs.$inferSelect, stats: { done: number; failed: number }): JobSummary {
   return {
     id: r.id,
@@ -130,14 +181,23 @@ function rowToJobSummary(r: typeof jobs.$inferSelect, stats: { done: number; fai
     createdAt: r.createdAt,
     finishedAt: r.finishedAt ?? undefined,
     basePrompt: r.basePrompt ?? undefined,
+    folderId: r.folderId ?? null,
+    previewUrl: getJobPreviewUrl(r.id),
   };
 }
 
-export function listJobsForUser(userId: string, limit = 50): JobSummary[] {
+export function listJobsForUser(userId: string, limit = 50, folderId?: string | null): JobSummary[] {
+  const conditions = [eq(jobs.userId, userId)];
+  if (folderId === null) {
+    conditions.push(isNull(jobs.folderId));
+  } else if (folderId !== undefined) {
+    conditions.push(eq(jobs.folderId, folderId));
+  }
+
   const rows = db
     .select()
     .from(jobs)
-    .where(eq(jobs.userId, userId))
+    .where(and(...conditions))
     .orderBy(desc(jobs.createdAt))
     .limit(limit)
     .all();
@@ -264,6 +324,17 @@ export function cancelJobForUser(userId: string, jobId: string): number {
   return count;
 }
 
+export function deleteJobForUser(userId: string, jobId: string): void {
+  db.transaction((tx) => {
+    tx.delete(subJobs)
+      .where(and(eq(subJobs.jobId, jobId), eq(subJobs.userId, userId)))
+      .run();
+    tx.delete(jobs)
+      .where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)))
+      .run();
+  });
+}
+
 export function retrySubJobForUser(
   userId: string,
   subJobId: string,
@@ -306,3 +377,56 @@ export function retrySubJobForUser(
     .run();
   return newId;
 }
+
+export interface Folder {
+  id: string;
+  userId: string;
+  name: string;
+  createdAt: number;
+}
+
+export function listFoldersForUser(userId: string): Folder[] {
+  return db
+    .select()
+    .from(folders)
+    .where(eq(folders.userId, userId))
+    .orderBy(desc(folders.createdAt))
+    .all() as Folder[];
+}
+
+export function createFolder(userId: string, name: string): Folder {
+  const folderId = nanoid();
+  const now = Date.now();
+  const folder = {
+    id: folderId,
+    userId,
+    name,
+    createdAt: now,
+  };
+  db.insert(folders).values(folder).run();
+  return folder;
+}
+
+export function deleteFolder(userId: string, folderId: string): void {
+  db.transaction((tx) => {
+    // Reset folderId to null for all jobs in this folder
+    tx.update(jobs)
+      .set({ folderId: null })
+      .where(and(eq(jobs.folderId, folderId), eq(jobs.userId, userId)))
+      .run();
+
+    // Delete folder
+    tx.delete(folders)
+      .where(and(eq(folders.id, folderId), eq(folders.userId, userId)))
+      .run();
+  });
+}
+
+export function batchMoveJobsToFolder(userId: string, jobIds: string[], folderId: string | null): void {
+  if (jobIds.length === 0) return;
+  db.update(jobs)
+    .set({ folderId })
+    .where(and(inArray(jobs.id, jobIds), eq(jobs.userId, userId)))
+    .run();
+}
+

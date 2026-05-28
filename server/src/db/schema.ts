@@ -76,6 +76,7 @@ export const jobs = sqliteTable(
     priority: integer('priority').notNull().default(50),
     createdAt: integer('created_at').notNull(),
     finishedAt: integer('finished_at'),
+    folderId: text('folder_id'),
   },
   (t) => ({
     byUserStatus: index('jobs_user_status_idx').on(t.userId, t.status),
@@ -227,6 +228,9 @@ export const copycatStrategies = sqliteTable(
     status: text('status').notNull().default('active'),
     createdAt: integer('created_at').notNull(),
     lastExecutedAt: integer('last_executed_at'),
+    destFolderId: text('dest_folder_id'),
+    autoCreateFolder: integer('auto_create_folder').notNull().default(0),
+    lastRunLog: text('last_run_log'),
   },
   (t) => ({
     byUser: index('copycat_strategies_user_idx').on(t.userId),
@@ -245,4 +249,18 @@ export const copycatProcessedVideos = sqliteTable(
     pk: primaryKey({ columns: [t.strategyId, t.videoUniqueId] }),
   })
 );
+
+export const folders = sqliteTable(
+  'folders',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    name: text('name').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    byUser: index('folders_user_idx').on(t.userId),
+  })
+);
+
 

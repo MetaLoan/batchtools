@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, desc, and, inArray } from 'drizzle-orm';
+import { eq, desc, and, inArray, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -36,6 +36,8 @@ interface CreateStrategyBody {
   outputCount?: number;
   reuseAudio?: boolean;
   crawlIntervalHours?: number;
+  destFolderId?: string | null;
+  autoCreateFolder?: boolean;
 }
 
 export async function copycatRoutes(app: FastifyInstance) {
@@ -139,9 +141,11 @@ export async function copycatRoutes(app: FastifyInstance) {
     }
   });
 
-  // 5. 获取特定博主的已采集视频列表
+  // 5. 获取特定博主的已采集视频列表（支持动态加载/无限向后同步）
   app.get('/v1/tk_bloggers/:id/videos', async (req, reply) => {
     const { id } = req.params as { id: string };
+    const { limit = '12', offset = '0' } = req.query as { limit?: string; offset?: string };
+
     const blogger = db
       .select()
       .from(tkBloggers)
@@ -153,11 +157,38 @@ export async function copycatRoutes(app: FastifyInstance) {
       return;
     }
 
+    const requestedLimit = parseInt(limit);
+    const requestedOffset = parseInt(offset);
+
+    // 查询当前本地数据库中该博主的视频数量
+    const dbCountRes = db
+      .select({ count: sql<number>`count(*)` })
+      .from(crawledVideos)
+      .where(eq(crawledVideos.bloggerId, id))
+      .get();
+    const currentDbCount = dbCountRes?.count ?? 0;
+
+    // 如果请求的数据偏移量加上单页限制，超过了数据库目前已存储的数据量，
+    // 我们就动态启动爬虫，去 TikTok 拉取更早页的数据
+    if (requestedOffset + requestedLimit > currentDbCount) {
+      const crawlStart = currentDbCount + 1;
+      const crawlEnd = crawlStart + 24; // 每次增量抓取后面 24 条
+      console.log(`[tk-crawler] Dynamic pull: DB has ${currentDbCount}, requesting offset ${requestedOffset} + limit ${requestedLimit}. Crawling ${crawlStart} to ${crawlEnd}`);
+      try {
+        await crawlBloggerVideos(id, req.currentUser!.id, crawlStart, crawlEnd);
+      } catch (err: any) {
+        console.error(`[tk-crawler] Dynamic crawl failed: ${err.message}`);
+      }
+    }
+
+    // 从数据库分页查询并返回
     const videos = db
       .select()
       .from(crawledVideos)
       .where(eq(crawledVideos.bloggerId, id))
       .orderBy(desc(crawledVideos.publishTime))
+      .limit(requestedLimit)
+      .offset(requestedOffset)
       .all();
 
     reply.send({ videos });
@@ -195,6 +226,8 @@ export async function copycatRoutes(app: FastifyInstance) {
       outputCount = 1,
       reuseAudio = true,
       crawlIntervalHours = 6,
+      destFolderId = null,
+      autoCreateFolder = false,
     } = body;
 
     if (!accountId || !name || !type || !bloggerIds || bloggerIds.length === 0 || !refImageUrl || !persona || !stylePrompt) {
@@ -236,6 +269,8 @@ export async function copycatRoutes(app: FastifyInstance) {
             outputCount,
             reuseAudio: reuseAudio ? 1 : 0,
             crawlIntervalHours,
+            destFolderId: destFolderId ?? null,
+            autoCreateFolder: autoCreateFolder ? 1 : 0,
           })
           .where(eq(copycatStrategies.id, id))
           .run();
@@ -263,6 +298,8 @@ export async function copycatRoutes(app: FastifyInstance) {
             crawlIntervalHours,
             status: 'active',
             createdAt: now,
+            destFolderId: destFolderId ?? null,
+            autoCreateFolder: autoCreateFolder ? 1 : 0,
           })
           .run();
       }
@@ -323,7 +360,57 @@ export async function copycatRoutes(app: FastifyInstance) {
     }
   });
 
-  // 5. 手动运行策略检测/生成
+  // 5. 复制策略
+  app.post('/v1/copycat_strategies/:id/copy', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const existing = db
+      .select()
+      .from(copycatStrategies)
+      .where(and(eq(copycatStrategies.id, id), eq(copycatStrategies.userId, req.currentUser!.id)))
+      .get();
+
+    if (!existing) {
+      reply.code(404).send({ error: 'Strategy not found' });
+      return;
+    }
+
+    const newId = nanoid();
+    const now = Date.now();
+    try {
+      db.insert(copycatStrategies)
+        .values({
+          id: newId,
+          userId: req.currentUser!.id,
+          accountId: existing.accountId,
+          name: `${existing.name} - 副本`,
+          type: existing.type,
+          bloggerIdsJson: existing.bloggerIdsJson,
+          filterMinDuration: existing.filterMinDuration,
+          filterMaxDuration: existing.filterMaxDuration,
+          filterPublishAfter: existing.filterPublishAfter,
+          filterMinPlayCount: existing.filterMinPlayCount,
+          filterDeduplicate: existing.filterDeduplicate,
+          refImageUrl: existing.refImageUrl,
+          persona: existing.persona,
+          stylePrompt: existing.stylePrompt,
+          outputCount: existing.outputCount,
+          reuseAudio: existing.reuseAudio,
+          crawlIntervalHours: existing.crawlIntervalHours,
+          status: 'paused', // 默认暂停，供用户查看或修改后启动
+          createdAt: now,
+          destFolderId: existing.destFolderId,
+          autoCreateFolder: existing.autoCreateFolder,
+        })
+        .run();
+
+      const created = db.select().from(copycatStrategies).where(eq(copycatStrategies.id, newId)).get();
+      reply.code(201).send(created);
+    } catch (e: any) {
+      reply.code(500).send({ error: e.message });
+    }
+  });
+
+  // 6. 手动运行策略检测/生成
   app.post('/v1/copycat_strategies/:id/run', async (req, reply) => {
     const { id } = req.params as { id: string };
     try {

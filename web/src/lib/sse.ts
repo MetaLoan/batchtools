@@ -19,6 +19,9 @@ export function useSse(userId: string | null) {
         if (data.type === 'job.created' || data.type === 'job.updated') {
           qc.invalidateQueries({ queryKey: ['jobs'] });
         }
+        if (data.type === 'copycat_strategy.log_updated') {
+          qc.invalidateQueries({ queryKey: ['copycat_strategies'] });
+        }
         if (data.type.startsWith('sub_job')) {
           qc.invalidateQueries({ queryKey: ['jobs'] });
           const payload = data.payload as { jobId?: string };
@@ -30,7 +33,7 @@ export function useSse(userId: string | null) {
         // ignore parse errors
       }
     };
-    ['ready', 'job.created', 'job.updated', 'sub_job.submitted', 'sub_job.updated', 'sub_job.finished'].forEach((t) =>
+    ['ready', 'job.created', 'job.updated', 'sub_job.submitted', 'sub_job.updated', 'sub_job.finished', 'copycat_strategy.log_updated'].forEach((t) =>
       es.addEventListener(t, onMsg as EventListener)
     );
     es.onerror = () => {

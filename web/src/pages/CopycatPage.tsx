@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { App as AntApp, Table, Button, Modal, Input, InputNumber, Select, Checkbox, DatePicker, Tabs, Drawer, Badge, Space, Upload, Tooltip } from 'antd';
-import { Plus, Trash2, Play, Pause, RefreshCw, Film, Video, Image as ImageIcon, Sparkles, Loader2, ArrowRight, Music, UserCheck, Calendar, Eye, ExternalLink, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, Play, Pause, RefreshCw, Film, Video, Image as ImageIcon, Sparkles, Loader2, ArrowRight, Music, UserCheck, Calendar, Eye, ExternalLink, ShieldAlert, Copy } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { api } from '../lib/api';
 import { useAppStore } from '../lib/store';
@@ -41,6 +41,9 @@ interface Strategy {
   status: string;
   createdAt: number;
   lastExecutedAt?: number;
+  destFolderId?: string | null;
+  autoCreateFolder?: number;
+  lastRunLog?: string | null;
 }
 
 interface ExecutionLog {
@@ -66,6 +69,12 @@ export default function CopycatPage() {
     queryKey: ['copycat_strategies'],
     queryFn: () => api.listCopycatStrategies(),
   });
+
+  const { data: folderRes, refetch: refetchFolders } = useQuery({
+    queryKey: ['folders'],
+    queryFn: () => api.listFolders(),
+  });
+  const folders = folderRes?.folders || [];
 
   const { data: bloggers = [], isLoading: isBloggersLoading } = useQuery<Blogger[]>({
     queryKey: ['tk_bloggers'],
@@ -143,6 +152,8 @@ export default function CopycatPage() {
   const [refImageUrl, setRefImageUrl] = useState('');
   const [persona, setPersona] = useState('');
   const [stylePrompt, setStylePrompt] = useState('');
+  const [destFolderId, setDestFolderId] = useState<string | null>(null);
+  const [autoCreateFolder, setAutoCreateFolder] = useState(false);
   const [outputCount, setOutputCount] = useState(1);
   const [reuseAudio, setReuseAudio] = useState(true);
   const [intervalHours, setIntervalHours] = useState(6);
@@ -159,14 +170,49 @@ export default function CopycatPage() {
     enabled: !!logStrategyId,
   });
 
-  // State: Blogger Videos Preview Drawer
+  // State: Blogger Videos Preview Drawer (动态分页与懒加载抓取)
   const [previewBloggerId, setPreviewBloggerId] = useState<string | null>(null);
   const [previewBloggerName, setPreviewBloggerName] = useState('');
-  const { data: bloggerVideos = [], isLoading: isBloggerVideosLoading } = useQuery({
-    queryKey: ['tk_blogger_videos', previewBloggerId],
-    queryFn: () => api.getTkBloggerVideos(previewBloggerId!).then((r) => r.videos),
-    enabled: !!previewBloggerId,
-  });
+  const [bloggerVideos, setBloggerVideos] = useState<any[]>([]);
+  const [isBloggerVideosLoading, setIsBloggerVideosLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreVideos, setHasMoreVideos] = useState(true);
+
+  async function loadMoreBloggerVideos(bloggerId: string, isInitial = false) {
+    const currentOffset = isInitial ? 0 : bloggerVideos.length;
+    if (isInitial) {
+      setIsBloggerVideosLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+    try {
+      const res = await api.getTkBloggerVideos(bloggerId, 12, currentOffset);
+      if (isInitial) {
+        setBloggerVideos(res.videos);
+      } else {
+        setBloggerVideos((prev) => {
+          // 去重合并
+          const existingIds = new Set(prev.map(v => v.id));
+          const newVids = res.videos.filter(v => !existingIds.has(v.id));
+          return [...prev, ...newVids];
+        });
+      }
+      setHasMoreVideos(res.videos.length === 12);
+    } catch (err) {
+      message.error('拉取视频列表失败: ' + (err as Error).message);
+    } finally {
+      setIsBloggerVideosLoading(false);
+      setIsLoadingMore(false);
+    }
+  }
+
+  useEffect(() => {
+    if (previewBloggerId) {
+      setBloggerVideos([]);
+      setHasMoreVideos(true);
+      loadMoreBloggerVideos(previewBloggerId, true);
+    }
+  }, [previewBloggerId]);
 
   // Blogger Mutations
   const addBloggerMutation = useMutation({
@@ -252,6 +298,17 @@ export default function CopycatPage() {
     },
   });
 
+  const copyStrategyMutation = useMutation({
+    mutationFn: (id: string) => api.copyCopycatStrategy(id),
+    onSuccess: () => {
+      message.success('策略复制成功，默认处于暂停状态');
+      queryClient.invalidateQueries({ queryKey: ['copycat_strategies'] });
+    },
+    onError: (err: any) => {
+      message.error(`复制失败: ${err.message || '未知原因'}`);
+    },
+  });
+
   // Handlers
   const handleAddBloggerSubmit = () => {
     if (!bloggerUrl.trim()) {
@@ -297,6 +354,8 @@ export default function CopycatPage() {
     setOutputCount(1);
     setReuseAudio(true);
     setIntervalHours(6);
+    setDestFolderId(null);
+    setAutoCreateFolder(false);
   };
 
   const handleOpenNewStrategy = () => {
@@ -349,6 +408,8 @@ export default function CopycatPage() {
     setOutputCount(strat.outputCount);
     setReuseAudio(strat.reuseAudio === 1);
     setIntervalHours(strat.crawlIntervalHours);
+    setDestFolderId(strat.destFolderId || null);
+    setAutoCreateFolder(strat.autoCreateFolder === 1);
     
     setIsStrategyDrawerOpen(true);
   };
@@ -396,6 +457,8 @@ export default function CopycatPage() {
       outputCount,
       reuseAudio,
       crawlIntervalHours: intervalHours,
+      destFolderId: autoCreateFolder ? null : destFolderId,
+      autoCreateFolder,
     };
 
     saveStrategyMutation.mutate(payload);
@@ -588,6 +651,12 @@ export default function CopycatPage() {
                             <span>上次运行: </span>
                             <span>{strat.lastExecutedAt ? dayjs(strat.lastExecutedAt).format('MM-DD HH:mm') : '未执行'}</span>
                           </div>
+                          {strat.lastRunLog && (
+                            <div className="mt-1 p-2 bg-zinc-950/60 rounded border border-zinc-850 font-mono text-[10px] text-zinc-400 leading-normal flex items-start gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 mt-1.5 shrink-0 animate-pulse" />
+                              <span className="flex-1 text-left">{strat.lastRunLog}</span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Actions */}
@@ -618,6 +687,13 @@ export default function CopycatPage() {
                             className="!h-8 !px-2.5 border border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:text-indigo-400 hover:border-indigo-500"
                             title="查看已处理视频与生成日志"
                           />
+                          <Tooltip title="复制该同款策略">
+                            <Button
+                              icon={copyStrategyMutation.isPending && copyStrategyMutation.variables === strat.id ? <Loader2 className="animate-spin" size={12} /> : <Copy size={12} />}
+                              onClick={() => copyStrategyMutation.mutate(strat.id)}
+                              className="!h-8 !px-2.5 border border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:text-brand-400 hover:border-brand-500"
+                            />
+                          </Tooltip>
                           <Button
                             onClick={() => handleOpenEditStrategy(strat)}
                             className="!h-8 border border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:text-zinc-200"
@@ -1312,6 +1388,67 @@ export default function CopycatPage() {
               />
             </div>
           </div>
+
+          {/* Folder Destination Configuration */}
+          <div className="space-y-4 rounded-lg border border-zinc-850 bg-zinc-950/40 p-4">
+            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>📂 任务输出归档文件夹</span>
+            </h4>
+
+            {/* Auto Create Folder Checkbox */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs text-zinc-300 font-semibold">自动创建独立文件夹</div>
+                <div className="text-[10px] text-zinc-500">每次运行自动以「策略名称+运行时间」创建新文件夹并归档</div>
+              </div>
+              <Checkbox
+                checked={autoCreateFolder}
+                onChange={(e) => {
+                  setAutoCreateFolder(e.target.checked);
+                  if (e.target.checked) {
+                    setDestFolderId(null);
+                  }
+                }}
+              />
+            </div>
+
+            {/* Select Destination Folder (disabled if auto-create is checked) */}
+            {!autoCreateFolder && (
+              <div className="space-y-2">
+                <label className="block text-[11px] text-zinc-400">
+                  选择现有归档文件夹 (或新建文件夹)
+                </label>
+                <div className="flex gap-2">
+                  <Select
+                    value={destFolderId || undefined}
+                    onChange={(val) => setDestFolderId(val || null)}
+                    placeholder="选择文件夹，不选则进入默认“未分类”"
+                    className="flex-1 bg-zinc-900 text-zinc-100"
+                    allowClear
+                    options={folders.map((f) => ({ label: f.name, value: f.id }))}
+                  />
+                  <Button
+                    icon={<Plus size={14} />}
+                    onClick={() => {
+                      const name = window.prompt('请输入新文件夹名称：');
+                      if (name && name.trim()) {
+                        api.createFolder(name.trim()).then((f) => {
+                          refetchFolders();
+                          setDestFolderId(f.id);
+                          message.success(`已创建并选择文件夹: ${name}`);
+                        }).catch((err) => {
+                          message.error('创建文件夹失败: ' + err.message);
+                        });
+                      }
+                    }}
+                    className="bg-zinc-800 border-zinc-700 text-zinc-200"
+                  >
+                    新建
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </Drawer>
 
@@ -1486,6 +1623,19 @@ export default function CopycatPage() {
                 </div>
               ))}
             </div>
+
+            {hasMoreVideos && (
+              <div className="pt-6 pb-8 text-center">
+                <Button
+                  onClick={() => loadMoreBloggerVideos(previewBloggerId!)}
+                  loading={isLoadingMore}
+                  type="default"
+                  className="border-zinc-800 hover:border-brand-500 hover:text-brand-400 bg-zinc-900/20"
+                >
+                  {isLoadingMore ? '正在从 TikTok 抓取更早历史视频...' : '加载更多视频 (持续向前抓取)'}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </Drawer>

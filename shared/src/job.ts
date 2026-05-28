@@ -39,6 +39,8 @@ export interface JobSummary {
   createdAt: number;
   finishedAt?: number;
   basePrompt?: string;
+  folderId?: string | null;
+  previewUrl?: string | null;
 }
 
 export interface JobDetail extends JobSummary {
@@ -115,7 +117,8 @@ export type SseEventType =
   | 'job.updated'
   | 'sub_job.submitted'
   | 'sub_job.updated'
-  | 'sub_job.finished';
+  | 'sub_job.finished'
+  | 'copycat_strategy.log_updated';
 
 export interface SseEvent<T = unknown> {
   type: SseEventType;
